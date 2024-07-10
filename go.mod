@@ -7,4 +7,6 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
+	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 )

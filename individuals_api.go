@@ -6,21 +6,29 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/net/idna"
 )
 
 // TODO: pagination
 
-// TODO: ?subdomain=false
 func ApiIndividualByDomain(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	// TODO: encode utf-8 chars to valid-domain
-	domain := reverse_str(mux.Vars(r)["domain"])
+	domain, _ := idna.ToASCII(mux.Vars(r)["domain"])
+	domain = SQLEscapeStringLike(domain)
 
-	// TODO: err
-	rows, _ := GlobalContext.Database.Queryx(`
+	if r.URL.Query().Get("subdomain") != "false" {
+		domain = "%" + domain
+	}
+
+	rows, err := GlobalContext.Database.Queryx(`
 	SELECT individuals.* FROM individual_emails
 	JOIN individuals ON individuals.id=individual_emails.individual_id
-	WHERE individual_emails.rev_host LIKE ? OR individual_emails.rev_host LIKE ?`,
-		SQLEscapeStringLike(domain)+"%", SQLEscapeStringLike(domain))
+	WHERE individual_emails.rev_host LIKE REVERSE(?)`,
+		SQLEscapeStringLike(domain))
+
+	if err != nil {
+		return nil, http.StatusInternalServerError, "SQL_ERROR", err
+	}
+
 	defer rows.Close()
 
 	var Individuals []JsonIndividual
@@ -37,17 +45,46 @@ func ApiIndividualByDomain(w http.ResponseWriter, r *http.Request) (any, int, st
 	return Individuals, 200, "", nil
 }
 
-// ?strict=true
+func _ApiIndividual_Strictness2Conds(strictness string, username string) (string, []any) {
+	switch strictness {
+	case "permissive":
+		return "email LIKE ? OR san_user LIKE ?", append([]any{},
+			SQLEscapeStringLike(username)+"%", alnumify(username)+"%")
+	case "lenient":
+		return "email LIKE ? OR email LIKE ? OR san_user = LOWER(?)", append([]any{},
+			SQLEscapeStringLike(username)+"+%",
+			SQLEscapeStringLike(username)+"@%",
+			alnumify(username))
+	case "moderate":
+		return "email LIKE ?", append([]any{},
+			SQLEscapeStringLike(username)+"%")
+	case "strict":
+		return "email LIKE ? OR email LIKE ?", append([]any{},
+			SQLEscapeStringLike(username)+"+%",
+			SQLEscapeStringLike(username)+"@%")
+	case "exact":
+		return "email LIKE ?", append([]any{}, SQLEscapeStringLike(username)+"@%")
+	}
+
+	return "email LIKE ? OR san_user LIKE ?", append([]any{},
+		SQLEscapeStringLike(username)+"%", alnumify(username)+"%")
+}
+
 func ApiIndividualByUsername(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	// TODO: encode utf-8 chars to valid-domain
 	username := mux.Vars(r)["username"]
 
-	// TODO: err
-	rows, _ := GlobalContext.Database.Queryx(`
+	usr_query, usr_vals := _ApiIndividual_Strictness2Conds(r.URL.Query().Get("strictness"), username)
+
+	rows, err := GlobalContext.Database.Queryx(`
 	SELECT individuals.* FROM individual_emails
 	JOIN individuals ON individuals.id=individual_emails.individual_id
-	WHERE individual_emails.san_user LIKE ? OR individual_emails.san_user LIKE ?`,
-		SQLEscapeStringLike(username)+"%", SQLEscapeStringLike(username))
+	WHERE `+usr_query,
+		usr_vals...)
+
+	if err != nil {
+		return nil, http.StatusInternalServerError, "SQL_ERROR", err
+	}
+
 	defer rows.Close()
 
 	var Individuals []JsonIndividual
@@ -64,18 +101,25 @@ func ApiIndividualByUsername(w http.ResponseWriter, r *http.Request) (any, int, 
 	return Individuals, 200, "", nil
 }
 
-// TODO: ?strict=true
 func ApiIndividualByEmail(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	// TODO: encode utf-8 chars to valid-domain
 	username := mux.Vars(r)["username"]
-	domain := mux.Vars(r)["domain"]
+	domain, _ := idna.ToASCII(mux.Vars(r)["domain"])
 
-	// TODO: err
-	rows, _ := GlobalContext.Database.Queryx(`
+	query, vals := _ApiIndividual_Strictness2Conds(r.URL.Query().Get("strictness"), username)
+	query = "(" + query + ") AND rev_host LIKE REVERSE(?)"
+	if r.URL.Query().Get("subdomain") != "false" {
+		vals = append(vals, "%"+domain)
+	}
+
+	rows, err := GlobalContext.Database.Queryx(`
 	SELECT individuals.* FROM individual_emails
 	JOIN individuals ON individuals.id=individual_emails.individual_id
-	WHERE individual_emails.san_user=LOWER(?) AND individual_emails.rev_host=LOWER(?)`,
-		alnumify(username), reverse_str(domain))
+	WHERE `+query, vals...)
+
+	if err != nil {
+		return nil, http.StatusInternalServerError, "SQL_ERROR", err
+	}
+
 	defer rows.Close()
 
 	var Individuals []JsonIndividual

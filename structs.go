@@ -81,8 +81,10 @@ func (row *TableIndividual) Init() {
 func (row *TableIndividual) FromJson(Individual *JsonIndividual) error {
 	row.Init()
 
-	// TODO: encode non-ASCII characters in domain name
 	if Individual.Emails != nil {
+		for i := 0; i < len(Individual.Emails); i++ {
+			Individual.Emails[i] = UnicodeEscape(SanitizeEmail(string(Individual.Emails[i])))
+		}
 		tmp, _ := json.Marshal(_IndividualSortList(Individual.Emails))
 		row.Emails = string(tmp)
 		row._emails = make([]UnicodeEscape, len(Individual.Emails))

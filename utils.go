@@ -1,6 +1,11 @@
 package main
 
-import "bytes"
+import (
+	"bytes"
+	"strings"
+
+	"golang.org/x/net/idna"
+)
 
 func reverse_str(str string) string {
 	runes := make([]rune, 0, len(str))
@@ -30,4 +35,18 @@ func alnumify(str string) string {
 	}
 
 	return result.String()
+}
+
+func SplitEmail(email string) (string, string) {
+	parts := strings.Split(email, "@")
+	domain := parts[len(parts)-1]
+	user := parts[0]
+
+	san_domain, _ := idna.ToASCII(domain)
+	return user, san_domain
+}
+
+func SanitizeEmail(email string) string {
+	user, domain := SplitEmail(email)
+	return user + "@" + domain
 }
