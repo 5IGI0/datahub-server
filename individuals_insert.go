@@ -126,12 +126,11 @@ func _InsertIndividuals_worker(individuals []TableIndividual) {
 		if hashId2Id[individuals[i].HashId] == 0 {
 			// on duplicate key update -> avoid atomicity issues
 			GlobalContext.Database.MustExec(`
-			INSERT INTO individuals (emails,usernames,realnames,names,first_seen,last_seen)
-			VALUES (?,?,?,?,?,?)
+			INSERT INTO individuals (data,first_seen,last_seen)
+			VALUES (?,?,?)
 			ON DUPLICATE KEY UPDATE
 			first_seen=LEAST(first_seen, VALUES(first_seen)), last_seen=GREATEST(last_seen, VALUES(last_seen))`,
-				individuals[i].Emails, individuals[i].Usernames, individuals[i].Realnames,
-				individuals[i].Names, individuals[i].FirstSeen, individuals[i].LastSeen)
+				individuals[i].Data, individuals[i].FirstSeen, individuals[i].LastSeen)
 		} else {
 			GlobalContext.Database.MustExec(`
 			UPDATE individuals

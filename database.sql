@@ -9,12 +9,8 @@ SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
 
 CREATE TABLE IF NOT EXISTS `individuals` (
     `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    `emails`        TEXT CHARACTER SET ascii NOT NULL DEFAULT '[]',
-    `usernames`     TEXT CHARACTER SET ascii NOT NULL DEFAULT '[]',
-    `realnames`     TEXT CHARACTER SET ascii NOT NULL DEFAULT '[]',
-    `names`         TEXT CHARACTER SET ascii NOT NULL DEFAULT '[]',
-    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
-        `emails`,`usernames`,`realnames`,`names`))),
+    `data`          TEXT CHARACTER SET utf8 NOT NULL DEFAULT '{}',
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(`data`))),
     `first_seen`    DATETIME NOT NULL,
     `last_seen`     DATETIME NOT NULL,
     INDEX `hash_index`(`hash_id`),

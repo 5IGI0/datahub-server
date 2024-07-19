@@ -2,26 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"golang.org/x/net/idna"
 )
-
-func reverse_str(str string) string {
-	runes := make([]rune, 0, len(str))
-
-	for _, r := range str {
-		runes = append(runes, r)
-	}
-
-	result := bytes.NewBufferString("")
-
-	for i := 0; i < len(runes); i++ {
-		result.WriteRune(runes[len(runes)-i-1])
-	}
-
-	return result.String()
-}
 
 func alnumify(str string) string {
 	result := bytes.NewBufferString("")
@@ -49,4 +34,27 @@ func SplitEmail(email string) (string, string) {
 func SanitizeEmail(email string) string {
 	user, domain := SplitEmail(email)
 	return user + "@" + domain
+}
+
+func JsonAny2StringList(input any) ([]string, bool) {
+	fully_converted := true
+	ret := []string{}
+
+	if input == nil {
+		return ret, false
+	}
+
+	if elements, ok := input.([]any); ok {
+		for _, element := range elements {
+			if str_element, ok := element.(string); ok {
+				ret = append(ret, str_element)
+			} else {
+				ret = append(ret, fmt.Sprint(element))
+			}
+		}
+	} else {
+		return ret, false
+	}
+
+	return ret, fully_converted
 }

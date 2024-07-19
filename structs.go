@@ -5,44 +5,20 @@ import (
 	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"slices"
 	"time"
 )
 
-type JsonIndividual struct {
-	Id        int64           `json:"id"`
-	Emails    []UnicodeEscape `json:"emails"`
-	Usernames []UnicodeEscape `json:"usernames"`
-	Realnames []UnicodeEscape `json:"realnames"`
-	// in case we can't easily determine if it is a realname or an username
-	Names     []UnicodeEscape `json:"names"`
-	FirstSeen UnicodeEscape   `json:"first_seen"`
-	LastSeen  UnicodeEscape   `json:"last_seen"`
-	Sources   []UnicodeEscape
-}
-
-func (ind *JsonIndividual) FromRow(row *TableIndividual) {
-	ind.Id = row.Id
-	json.Unmarshal([]byte(row.Emails), &ind.Emails)
-	json.Unmarshal([]byte(row.Usernames), &ind.Usernames)
-	json.Unmarshal([]byte(row.Realnames), &ind.Realnames)
-	json.Unmarshal([]byte(row.Names), &ind.Names)
-	ind.FirstSeen = UnicodeEscape(time.Time(row.FirstSeen).Format(time.RFC3339))
-	ind.LastSeen = UnicodeEscape(time.Time(row.LastSeen).Format(time.RFC3339))
-	ind.Sources = append([]UnicodeEscape{}, row._sources...)
-}
-
 type TableIndividual struct {
 	Id int64 `db:"id"`
-	// json-encoded list.
-	Emails    string `db:"emails"`
-	_emails   []UnicodeEscape
-	Usernames string `db:"usernames"`
-	Realnames string `db:"realnames"`
-	Names     string `db:"names"`
+	// json-encoded data.
+	Data      string
 	HashId    string `db:"hash_id"`
 	FirstSeen DBTime `db:"first_seen"`
 	LastSeen  DBTime `db:"last_seen"`
-	_sources  []UnicodeEscape
+	_emails   []string
+	_sources  []string
 }
 
 type DBTime time.Time
@@ -65,63 +41,77 @@ func (t *DBTime) Scan(value interface{}) error {
 }
 
 func (row *TableIndividual) UpdateHash() {
-	tmp := sha1.Sum([]byte(row.Emails + row.Usernames + row.Realnames + row.Names))
+	tmp := sha1.Sum([]byte(row.Data))
 	row.HashId = hex.EncodeToString(tmp[:])
 }
 
 func (row *TableIndividual) Init() {
-	row.Emails = "[]"
-	row.Usernames = "[]"
-	row.Realnames = "[]"
-	row.Names = "[]"
+	row.Data = "{}"
 	row.UpdateHash()
-	row._sources = []UnicodeEscape{}
+	row._sources = []string{}
 }
 
-func (row *TableIndividual) FromJson(Individual *JsonIndividual) error {
+func (row *TableIndividual) FromMap(Individual map[string]any) error {
 	row.Init()
 
-	if Individual.Emails != nil {
-		for i := 0; i < len(Individual.Emails); i++ {
-			Individual.Emails[i] = UnicodeEscape(SanitizeEmail(string(Individual.Emails[i])))
+	if str, ok := Individual["first_seen"].(string); ok {
+		tmp, err := time.Parse(time.RFC3339, str)
+		row.FirstSeen = DBTime(tmp)
+		if err != nil {
+			return err
 		}
-		tmp, _ := json.Marshal(_IndividualSortList(Individual.Emails))
-		row.Emails = string(tmp)
-		row._emails = make([]UnicodeEscape, len(Individual.Emails))
-		copy(row._emails, Individual.Emails)
 	}
 
-	if Individual.Names != nil {
-		tmp, _ := json.Marshal(_IndividualSortList(Individual.Names))
-		row.Names = string(tmp)
+	if str, ok := Individual["last_seen"].(string); ok {
+		tmp, err := time.Parse(time.RFC3339, str)
+		row.LastSeen = DBTime(tmp)
+		if err != nil {
+			return err
+		}
 	}
 
-	if Individual.Realnames != nil {
-		tmp, _ := json.Marshal(_IndividualSortList(Individual.Realnames))
-		row.Realnames = string(tmp)
+	row._emails, _ = JsonAny2StringList(Individual["emails"])
+	row._sources, _ = JsonAny2StringList(Individual["sources"])
+
+	if len(row._emails) == 0 {
+		return errors.New("individual has no searchable field")
 	}
 
-	if Individual.Usernames != nil {
-		tmp, _ := json.Marshal(_IndividualSortList(Individual.Usernames))
-		row.Usernames = string(tmp)
+	if len(row._sources) == 0 {
+		return errors.New("individual has no source")
 	}
 
-	var err error
-	tmp, err := time.Parse(time.RFC3339, string(Individual.FirstSeen))
-	row.FirstSeen = DBTime(tmp)
-	if err != nil {
+	map_copy := make(map[string]any)
+
+	for k, v := range Individual {
+		if !slices.Contains([]string{
+			// things that should be ignored (for hash consistence)
+			"sources",
+			"first_seen",
+			"last_seen",
+		}, k) {
+			map_copy[k] = v
+		}
+	}
+
+	if tmp, err := json.Marshal(JsonSanitize(map_copy)); err != nil {
 		return err
+	} else {
+		row.Data = string(tmp)
 	}
-	tmp, err = time.Parse(time.RFC3339, string(Individual.LastSeen))
-	row.LastSeen = DBTime(tmp)
-	if err != nil {
-		return err
-	}
-
-	row._sources = make([]UnicodeEscape, len(Individual.Sources))
-	copy(row._sources, Individual.Sources)
 
 	row.UpdateHash()
 
 	return nil
+}
+
+func (row *TableIndividual) ToMap() map[string]any {
+	ret := make(map[string]any)
+
+	json.Unmarshal([]byte(row.Data), &ret)
+	ret["first_seen"] = any(row.FirstSeen)
+	ret["last_seen"] = any(row.LastSeen)
+	ret[INDIVIDUAL_ID_KEY] = row.Id
+
+	return ret
 }

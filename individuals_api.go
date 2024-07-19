@@ -6,10 +6,23 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/jmoiron/sqlx"
 	"golang.org/x/net/idna"
 )
 
 // TODO: pagination
+
+func _IndividualApiRows2Json(rows *sqlx.Rows) []map[string]any {
+	Individuals := []map[string]any{}
+	for rows.Next() {
+		var row TableIndividual
+		rows.StructScan(&row) // TODO: error
+		Individuals = append(Individuals, row.ToMap())
+	}
+
+	GetIndividualsSources(Individuals)
+	return Individuals
+}
 
 func ApiIndividualByDomain(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
 	domain, _ := idna.ToASCII(mux.Vars(r)["domain"])
@@ -31,18 +44,7 @@ func ApiIndividualByDomain(w http.ResponseWriter, r *http.Request) (any, int, st
 
 	defer rows.Close()
 
-	var Individuals []JsonIndividual
-	for rows.Next() {
-		var IndividualRow TableIndividual
-		var IndividualJson JsonIndividual
-		rows.StructScan(&IndividualRow) // TODO: error
-		IndividualJson.FromRow(&IndividualRow)
-		Individuals = append(Individuals, IndividualJson)
-	}
-
-	GetIndividualsSources(Individuals)
-
-	return Individuals, 200, "", nil
+	return _IndividualApiRows2Json(rows), 200, "", nil
 }
 
 func _ApiIndividual_Strictness2Conds(strictness string, username string) (string, []any) {
@@ -87,18 +89,7 @@ func ApiIndividualByUsername(w http.ResponseWriter, r *http.Request) (any, int, 
 
 	defer rows.Close()
 
-	var Individuals []JsonIndividual
-	for rows.Next() {
-		var IndividualRow TableIndividual
-		var IndividualJson JsonIndividual
-		rows.StructScan(&IndividualRow) // TODO: error
-		IndividualJson.FromRow(&IndividualRow)
-		Individuals = append(Individuals, IndividualJson)
-	}
-
-	GetIndividualsSources(Individuals)
-
-	return Individuals, 200, "", nil
+	return _IndividualApiRows2Json(rows), 200, "", nil
 }
 
 func ApiIndividualByEmail(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
@@ -122,22 +113,11 @@ func ApiIndividualByEmail(w http.ResponseWriter, r *http.Request) (any, int, str
 
 	defer rows.Close()
 
-	var Individuals []JsonIndividual
-	for rows.Next() {
-		var IndividualRow TableIndividual
-		var IndividualJson JsonIndividual
-		rows.StructScan(&IndividualRow) // TODO: error
-		IndividualJson.FromRow(&IndividualRow)
-		Individuals = append(Individuals, IndividualJson)
-	}
-
-	GetIndividualsSources(Individuals)
-
-	return Individuals, 200, "", nil
+	return _IndividualApiRows2Json(rows), 200, "", nil
 }
 
 func ApiIndividualAdd(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	var input []JsonIndividual
+	var input []map[string]any
 
 	{
 		tmp, _ := io.ReadAll(r.Body)
@@ -150,7 +130,7 @@ func ApiIndividualAdd(w http.ResponseWriter, r *http.Request) (any, int, string,
 
 	for i := range input {
 		var row TableIndividual
-		if err := row.FromJson(&input[i]); err != nil {
+		if err := row.FromMap(input[i]); err != nil {
 			return nil, http.StatusBadRequest, "INVALID_DATA", err
 		}
 		rows = append(rows, row)

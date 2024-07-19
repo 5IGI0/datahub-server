@@ -8,11 +8,11 @@ const (
 	MAX_SQLX_PLACEHOLDERS = 250
 )
 
-func GetIndividualsSources(individuals []JsonIndividual) {
+func GetIndividualsSources(individuals []map[string]any) {
 	ids := make([]int64, 0, len(individuals))
 
 	for i := range individuals {
-		ids = append(ids, individuals[i].Id)
+		ids = append(ids, individuals[i][INDIVIDUAL_ID_KEY].(int64))
 	}
 
 	for i := 0; i < len(ids); i += MAX_SQLX_PLACEHOLDERS {
@@ -47,36 +47,15 @@ func GetIndividualsSources(individuals []JsonIndividual) {
 			rows.StructScan(&row) // TODO: error
 
 			for y := range individuals {
-				if individuals[y].Id == row.Id && !slices.Contains(individuals[y].Sources, UnicodeEscape(row.Source)) {
-					individuals[y].Sources = append(individuals[y].Sources, UnicodeEscape(row.Source))
+				sources, _ := JsonAny2StringList(individuals[y]["sources"])
+				if individuals[y]["sources"] == nil {
+					individuals[y]["sources"] = []any{}
+				}
+
+				if individuals[y][INDIVIDUAL_ID_KEY] == row.Id && !slices.Contains(sources, row.Source) {
+					individuals[y]["sources"] = append(individuals[y]["sources"].([]any), any(row.Source))
 				}
 			}
 		}
 	}
-}
-
-// TODO: remove duplicate
-func _IndividualSortList(list []UnicodeEscape) []UnicodeEscape {
-	output := make([]UnicodeEscape, len(list))
-	copy(output, list)
-
-	slices.SortFunc(output, func(a UnicodeEscape, b UnicodeEscape) int {
-		for i := range []byte(a) {
-			if len(b) <= i {
-				return int([]byte(a)[i])
-			}
-			tmp := int([]byte(a)[i]) - int([]byte(b)[i])
-			if tmp != 0 {
-				return tmp
-			}
-		}
-
-		if len(a) == len(b) {
-			return 0
-		}
-
-		return -int([]byte(b)[len([]byte(b))-1])
-	})
-
-	return output
 }
