@@ -24,29 +24,6 @@ func _IndividualApiRows2Json(rows *sqlx.Rows) []map[string]any {
 	return Individuals
 }
 
-func ApiIndividualByDomain(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	domain, _ := idna.ToASCII(mux.Vars(r)["domain"])
-	domain = SQLEscapeStringLike(domain)
-
-	if r.URL.Query().Get("subdomain") != "false" {
-		domain = "%" + domain
-	}
-
-	rows, err := GlobalContext.Database.Queryx(`
-	SELECT individuals.* FROM individual_emails
-	JOIN individuals ON individuals.id=individual_emails.individual_id
-	WHERE individual_emails.rev_host LIKE REVERSE(?)`,
-		SQLEscapeStringLike(domain))
-
-	if err != nil {
-		return nil, http.StatusInternalServerError, "SQL_ERROR", err
-	}
-
-	defer rows.Close()
-
-	return _IndividualApiRows2Json(rows), 200, "", nil
-}
-
 func _ApiIndividual_Strictness2Conds(strictness string, username string) (string, []any) {
 	switch strictness {
 	case "permissive":
@@ -70,26 +47,6 @@ func _ApiIndividual_Strictness2Conds(strictness string, username string) (string
 
 	return "email LIKE ? OR san_user LIKE ?", append([]any{},
 		SQLEscapeStringLike(username)+"%", alnumify(username)+"%")
-}
-
-func ApiIndividualByUsername(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	username := mux.Vars(r)["username"]
-
-	usr_query, usr_vals := _ApiIndividual_Strictness2Conds(r.URL.Query().Get("strictness"), username)
-
-	rows, err := GlobalContext.Database.Queryx(`
-	SELECT individuals.* FROM individual_emails
-	JOIN individuals ON individuals.id=individual_emails.individual_id
-	WHERE `+usr_query,
-		usr_vals...)
-
-	if err != nil {
-		return nil, http.StatusInternalServerError, "SQL_ERROR", err
-	}
-
-	defer rows.Close()
-
-	return _IndividualApiRows2Json(rows), 200, "", nil
 }
 
 func ApiIndividualByEmail(w http.ResponseWriter, r *http.Request) (any, int, string, error) {

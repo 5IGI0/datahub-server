@@ -21,9 +21,15 @@ func main() {
 	GlobalContext.Database.SetMaxIdleConns(10)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/api/v1/individuals/domain/{domain}", ApiDecorator(ApiIndividualByDomain))
-	r.HandleFunc("/api/v1/individuals/user/{username}", ApiDecorator(ApiIndividualByUsername))
+
+	/* find individuals by email */
 	r.HandleFunc("/api/v1/individuals/email/{username}@{domain}", ApiDecorator(ApiIndividualByEmail))
+	r.HandleFunc("/api/v1/individuals/email/{username}@", ApiDecorator(ApiIndividualByEmail))
+	r.HandleFunc("/api/v1/individuals/email/@{domain}", ApiDecorator(ApiIndividualByEmail))
+
+	/* feed-related */
 	r.HandleFunc("/api/v1/individuals/add", ApiPostDecorator(ApiIndividualAdd))
+
+	/* start server */
 	panic(http.ListenAndServe(os.Getenv("LISTEN_ADDR"), r))
 }
