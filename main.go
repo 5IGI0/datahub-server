@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -14,12 +15,15 @@ var GlobalContext = struct {
 	Database *sqlx.DB
 }{}
 
-func main() {
+func ConnectDatabase() {
 	GlobalContext.Database = sqlx.MustConnect("mysql", os.Getenv("DATABASE_URI"))
 	GlobalContext.Database.SetConnMaxLifetime(time.Minute * 3)
 	GlobalContext.Database.SetMaxOpenConns(10)
 	GlobalContext.Database.SetMaxIdleConns(10)
+}
 
+func StartApi() {
+	ConnectDatabase()
 	r := mux.NewRouter()
 
 	/* find individuals by email */
@@ -27,9 +31,39 @@ func main() {
 	r.HandleFunc("/api/v1/individuals/email/{username}@", ApiDecorator(ApiIndividualByEmail))
 	r.HandleFunc("/api/v1/individuals/email/@{domain}", ApiDecorator(ApiIndividualByEmail))
 
+	/* domain-related */
+	r.HandleFunc("/api/v1/domains/subdomains/{domain}", ApiDecorator(ApiDomainSubs))
+	r.HandleFunc("/api/v1/domains/scan/{domain}", ApiDecorator(ApiDomainScan))
+
+	/* IP-related */
+	r.HandleFunc("/api/v1/addrs/addr/{addr}", ApiDecorator(ApiAddrInfo))
+
 	/* feed-related */
 	r.HandleFunc("/api/v1/individuals/add", ApiPostDecorator(ApiIndividualAdd))
+	r.HandleFunc("/api/v1/domains/add_scan", ApiPostDecorator(ApiDomainAdd))
+	r.HandleFunc("/api/v1/domains/outdated", ApiDecorator(ApiDomainsOutdated))
 
 	/* start server */
 	panic(http.ListenAndServe(os.Getenv("LISTEN_ADDR"), r))
+}
+
+func Usage() {
+	fmt.Println("Usage:", os.Args[0], "<subcommand> [ARGS...]")
+	fmt.Println("subcommands:")
+	fmt.Println(" - api")
+	fmt.Println(" - task")
+}
+
+func main() {
+	if len(os.Args) == 1 {
+		Usage()
+		return
+	}
+
+	switch os.Args[1] {
+	case "api":
+		StartApi()
+	case "task":
+		StartTask()
+	}
 }

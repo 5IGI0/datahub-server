@@ -4,10 +4,6 @@ import (
 	"slices"
 )
 
-const (
-	MAX_SQLX_PLACEHOLDERS = 250
-)
-
 func GetIndividualsSources(individuals []map[string]any) {
 	ids := make([]int64, 0, len(individuals))
 

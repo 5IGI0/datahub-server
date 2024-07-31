@@ -58,3 +58,22 @@ func JsonAny2StringList(input any) ([]string, bool) {
 
 	return ret, fully_converted
 }
+
+func AssertError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func TruncateText(input string, limit int) string {
+	buff := bytes.NewBufferString("")
+
+	for i, c := range input {
+		if i >= limit {
+			return buff.String()
+		}
+		buff.WriteRune(c)
+	}
+
+	return buff.String()
+}
