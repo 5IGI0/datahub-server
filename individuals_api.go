@@ -5,18 +5,17 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/net/idna"
 )
 
-// TODO: pagination
-
 func _IndividualApiRows2Json(rows *sqlx.Rows) []map[string]any {
 	Individuals := []map[string]any{}
 	for rows.Next() {
 		var row TableIndividual
-		rows.StructScan(&row) // TODO: error
+		AssertError(rows.StructScan(&row)) // TODO: error
 		Individuals = append(Individuals, row.ToMap())
 	}
 
@@ -24,45 +23,56 @@ func _IndividualApiRows2Json(rows *sqlx.Rows) []map[string]any {
 	return Individuals
 }
 
-func _ApiIndividual_Strictness2Conds(strictness string, username string) (string, []any) {
+func _ApiIndividual_Strictness2Conds(strictness string, username string) squirrel.Sqlizer {
 	switch strictness {
 	case "permissive":
-		return "email LIKE ? OR san_user LIKE ?", append([]any{},
-			SQLEscapeStringLike(username)+"%", alnumify(username)+"%")
+		return squirrel.Or{
+			squirrel.Like{"san_user": alnumify(username) + "%"},
+			squirrel.Like{"email": SQLEscapeStringLike(username) + "%"},
+		}
 	case "lenient":
-		return "email LIKE ? OR email LIKE ? OR san_user = LOWER(?)", append([]any{},
-			SQLEscapeStringLike(username)+"+%",
-			SQLEscapeStringLike(username)+"@%",
-			alnumify(username))
+		return squirrel.Or{
+			squirrel.Like{"san_user": alnumify(username)},
+			squirrel.Like{"email": SQLEscapeStringLike(username) + "+%"},
+			squirrel.Like{"email": SQLEscapeStringLike(username) + "@%"},
+		}
 	case "moderate":
-		return "email LIKE ?", append([]any{},
-			SQLEscapeStringLike(username)+"%")
+		return squirrel.Like{"email": SQLEscapeStringLike(username) + "%"}
 	case "strict":
-		return "email LIKE ? OR email LIKE ?", append([]any{},
-			SQLEscapeStringLike(username)+"+%",
-			SQLEscapeStringLike(username)+"@%")
+		return squirrel.Or{
+			squirrel.Like{"email": SQLEscapeStringLike(username) + "+%"},
+			squirrel.Like{"email": SQLEscapeStringLike(username) + "@%"},
+		}
 	case "exact":
-		return "email LIKE ?", append([]any{}, SQLEscapeStringLike(username)+"@%")
+		return squirrel.Like{"email": SQLEscapeStringLike(username) + "@%"}
 	}
 
-	return "email LIKE ? OR san_user LIKE ?", append([]any{},
-		SQLEscapeStringLike(username)+"%", alnumify(username)+"%")
+	return squirrel.Or{
+		squirrel.Like{"san_user": alnumify(username) + "%"},
+		squirrel.Like{"email": SQLEscapeStringLike(username) + "%"},
+	}
 }
 
 func ApiIndividualByEmail(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
 	username := mux.Vars(r)["username"]
 	domain, _ := idna.ToASCII(mux.Vars(r)["domain"])
 
-	query, vals := _ApiIndividual_Strictness2Conds(r.URL.Query().Get("strictness"), username)
-	query = "(" + query + ") AND rev_host LIKE REVERSE(?)"
-	if r.URL.Query().Get("subdomain") != "false" {
-		vals = append(vals, "%"+domain)
+	conds := squirrel.And{
+		_ApiIndividual_Strictness2Conds(r.URL.Query().Get("strictness"), username),
+		squirrel.Expr("rev_host LIKE REVERSE(?)", "%"+domain),
 	}
 
-	rows, err := GlobalContext.Database.Queryx(`
-	SELECT individuals.* FROM individual_emails
-	JOIN individuals ON individuals.id=individual_emails.individual_id
-	WHERE `+query, vals...)
+	page, page_size := Req2Page(r)
+	q, v, _ := squirrel.
+		Select("`individuals`.*").
+		From("`individual_emails`").
+		Join("`individuals` ON `individuals`.`id`=`individual_emails`.`individual_id`").
+		Where(conds).
+		Limit(uint64(page_size)).
+		Offset(uint64((page - 1) * page_size)).
+		ToSql()
+
+	rows, err := GlobalContext.Database.Queryx(q, v...)
 
 	if err != nil {
 		return nil, http.StatusInternalServerError, "SQL_ERROR", err

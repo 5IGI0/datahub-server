@@ -32,7 +32,7 @@ func ApiDomainSubs(w http.ResponseWriter, r *http.Request) (any, int, string, er
 
 	ret := make([]string, 0)
 
-	rows, err := GlobalContext.Database.Query("SELECT domain FROM domains WHERE rev_domain LIKE REVERSE(?)",
+	rows, err := GlobalContext.Database.Query("SELECT domain FROM domains WHERE rev_domain LIKE REVERSE(?) LIMIT 1000",
 		"%."+SQLEscapeStringLike(domain))
 
 	if err != nil {

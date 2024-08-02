@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"golang.org/x/net/idna"
 )
 
@@ -83,4 +86,23 @@ func Ternary[T any](cond bool, a T, b T) T {
 		return a
 	}
 	return b
+}
+
+func Req2Page(r *http.Request) (int, int) {
+	page_size, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	page, _ := strconv.Atoi(mux.Vars(r)["page"])
+
+	if page <= 0 {
+		page = 1
+	}
+
+	if page_size <= 0 {
+		page_size = DEFAULT_PAGESIZE
+	}
+
+	if page_size > MAX_PAGESIZE {
+		page_size = MAX_PAGESIZE
+	}
+
+	return page, page_size
 }

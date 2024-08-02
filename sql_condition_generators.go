@@ -47,11 +47,11 @@ type SubDomainCondGeneratorType struct{}
 var SubDomainCondGenerator SubDomainCondGeneratorType
 
 func (SubDomainCondGeneratorType) Generate(field string, vals []string) ([]squirrel.Sqlizer, error) {
-	return []squirrel.Sqlizer{squirrel.Eq{
-		field: squirrel.Expr(
+	return []squirrel.Sqlizer{
+		squirrel.Expr(
 			"`"+field+"` LIKE REVERSE(?)",
 			"%"+SQLEscapeStringLike(vals[0]),
-		)}}, nil
+		)}, nil
 }
 
 type ToggleCondGeneratorType struct{}
@@ -65,4 +65,13 @@ func (ToggleCondGeneratorType) Generate(field string, vals []string) ([]squirrel
 			field: 1}}, nil
 	}
 	return nil, nil
+}
+
+type LikeCondGeneratorType struct{}
+
+var LikeCondGenerator LikeCondGeneratorType
+
+func (LikeCondGeneratorType) Generate(field string, vals []string) ([]squirrel.Sqlizer, error) {
+	return []squirrel.Sqlizer{squirrel.Like{
+		field: SQLEscapeStringLike(vals[0])}}, nil
 }

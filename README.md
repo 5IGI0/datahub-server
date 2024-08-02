@@ -11,9 +11,9 @@ central server for managing/aggregating all data received from the various sourc
 http servers
 
 - [X] store headers
-- [ ] search by header
+- [X] search by header
 - [X] store html meta
-- [ ] search by html meta
+- [X] search by html meta
 - [ ] store robots.txt directives
 - [ ] search by robots.txt directives
 

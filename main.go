@@ -30,6 +30,9 @@ func StartApi() {
 	r.HandleFunc("/api/v1/individuals/email/{username}@{domain}", ApiDecorator(ApiIndividualByEmail))
 	r.HandleFunc("/api/v1/individuals/email/{username}@", ApiDecorator(ApiIndividualByEmail))
 	r.HandleFunc("/api/v1/individuals/email/@{domain}", ApiDecorator(ApiIndividualByEmail))
+	r.HandleFunc("/api/v1/individuals/email/{username}@{domain}/{page}", ApiDecorator(ApiIndividualByEmail))
+	r.HandleFunc("/api/v1/individuals/email/{username}@/{page}", ApiDecorator(ApiIndividualByEmail))
+	r.HandleFunc("/api/v1/individuals/email/@{domain}/{page}", ApiDecorator(ApiIndividualByEmail))
 
 	/* domain-related */
 	r.HandleFunc("/api/v1/domains/subdomains/{domain}", ApiDecorator(ApiDomainSubs))
@@ -37,6 +40,11 @@ func StartApi() {
 
 	/* http services */
 	r.HandleFunc("/api/v1/services/http", ApiDecorator(ApiHttpServicesSearch))
+	r.HandleFunc("/api/v1/services/http_by_header", ApiDecorator(ApiHttpServicesSearchByHeader))
+	r.HandleFunc("/api/v1/services/http_by_meta", ApiDecorator(ApiHttpServicesSearchByMeta))
+	r.HandleFunc("/api/v1/services/http/{page}", ApiDecorator(ApiHttpServicesSearch))
+	r.HandleFunc("/api/v1/services/http_by_header/{page}", ApiDecorator(ApiHttpServicesSearchByHeader))
+	r.HandleFunc("/api/v1/services/http_by_meta/{page}", ApiDecorator(ApiHttpServicesSearchByMeta))
 
 	/* IP-related */
 	r.HandleFunc("/api/v1/addrs/addr/{addr}", ApiDecorator(ApiAddrInfo))
