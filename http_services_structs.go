@@ -4,7 +4,7 @@ import "database/sql"
 
 type HttpServiceRow struct {
 	Id         int64          `db:"id"`
-	DomainId   int64          `db:"domain"`
+	DomainId   int64          `db:"domain_id"`
 	IsActive   int8           `db:"is_active"`
 	Domain     string         `db:"domain"`
 	RevDomain  string         `db:"rev_domain"`
@@ -13,7 +13,7 @@ type HttpServiceRow struct {
 	PageTitle  sql.NullString `db:"page_title"`
 	StatusCode uint16         `db:"status_code"`
 	ActualPath string         `db:"actual_path"`
-	RawStatus  string         `db:"raw_result"`
+	RawResult  string         `db:"raw_result"`
 }
 
 type HttpDocumentMetaRow struct {

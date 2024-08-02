@@ -65,6 +65,7 @@ func DomainInsertScan(Scan map[string]any) error {
 
 	DomainInsertRecords(domain_id, dns_records)
 
+	GlobalContext.Database.MustExec("UPDATE http_services SET is_active=0 WHERE domain_id=?", domain_id)
 	for k, v := range services {
 		switch k {
 		case "http":

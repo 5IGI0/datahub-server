@@ -17,12 +17,12 @@ func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8,
 		service_id, _ = GlobalContext.Database.MustExec(`INSERT INTO http_services(
 			      is_active,domain_id,domain,secure,port,page_title,status_code,actual_path,raw_result)
 			VALUE(1,?,?,?,?,?,?,?,?)`,
-			domain_id, domain, secure, port, data["page_title"], data["status_code"], data["path"], raw_result).LastInsertId()
+			domain_id, domain, secure, port, data["title"], data["status_code"], data["path"], raw_result).LastInsertId()
 	} else {
 		GlobalContext.Database.MustExec(`UPDATE http_services
 		SET is_active=1,page_title=?,status_code=?,actual_path=?,raw_result=?
 		WHERE id=?`,
-			data["page_title"], data["status_code"], data["path"], raw_result, service_id)
+			data["title"], data["status_code"], data["path"], raw_result, service_id)
 	}
 
 	HttpServiceInsertHeader(service_id, data["headers"].(map[string]any))
@@ -89,7 +89,7 @@ func HttpServiceInsertHeader(service_id int64, headers map[string]any) {
 
 	for k, v := range headers {
 
-		v = TruncateText(v.(string), 127)
+		v := TruncateText(v.(string), 127)
 		k = TruncateText(k, 127)
 
 		is_present := false
@@ -105,6 +105,7 @@ func HttpServiceInsertHeader(service_id int64, headers map[string]any) {
 		}
 		GlobalContext.Database.MustExec("INSERT INTO `http_headers`(`service_id`,`is_active`,`key`,`value`) VALUE(?,1,?,?)",
 			service_id, k, v)
+		PresentHeader = append(PresentHeader, HttpHeaderRow{Key: k, Value: v})
 	}
 }
 
@@ -183,5 +184,6 @@ func HttpServiceInsertDocumentMeta(service_id int64, meta []any) {
 
 		GlobalContext.Database.MustExec("INSERT INTO `http_document_meta`(`service_id`,`is_active`,`property`,`content`) VALUE(?,1,?,?)",
 			service_id, p, c)
+		PresentMeta = append(PresentMeta, HttpDocumentMetaRow{Property: p, Content: c})
 	}
 }

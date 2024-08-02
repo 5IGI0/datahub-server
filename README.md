@@ -6,6 +6,7 @@ central server for managing/aggregating all data received from the various sourc
 
 - [ ] front
 - [ ] websocket for dispatching job to workers
+- [ ] use ORM or QueryBuilder
 
 http servers
 

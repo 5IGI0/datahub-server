@@ -35,6 +35,9 @@ func StartApi() {
 	r.HandleFunc("/api/v1/domains/subdomains/{domain}", ApiDecorator(ApiDomainSubs))
 	r.HandleFunc("/api/v1/domains/scan/{domain}", ApiDecorator(ApiDomainScan))
 
+	/* http services */
+	r.HandleFunc("/api/v1/services/http", ApiDecorator(ApiHttpServicesSearch))
+
 	/* IP-related */
 	r.HandleFunc("/api/v1/addrs/addr/{addr}", ApiDecorator(ApiAddrInfo))
 

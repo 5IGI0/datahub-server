@@ -58,20 +58,19 @@ CREATE TABLE IF NOT EXISTS `domains` (
     `last_seen`     DATETIME DEFAULT NULL,
     `last_check`    DATETIME DEFAULT NULL,
     `check_ver`     SMALLINT UNSIGNED DEFAULT 0,
-    INDEX `rev_domain_ind`(`rev_domain`)
+    INDEX `rev_domain_ind`(`rev_domain`),
+    INDEX `last_check_ind`(`last_check`)
 );
 
-DROP TRIGGER IF EXISTS domains_insert_trigger;
-DROP TRIGGER IF EXISTS domains_update_trigger;
 DELIMITER //
-CREATE TRIGGER domains_insert_trigger
+CREATE TRIGGER IF NOT EXISTS domains_insert_trigger
 BEFORE INSERT ON `domains` FOR EACH ROW
 BEGIN
    -- Remove trailing period from domain
    SET NEW.domain = REGEXP_REPLACE(LOWER(NEW.domain), '\\.$', '');
    SET NEW.old_flags = NEW.cur_flags;
 END; //
-CREATE TRIGGER domains_update_trigger
+CREATE TRIGGER IF NOT EXISTS domains_update_trigger
 BEFORE UPDATE ON `domains` FOR EACH ROW
 BEGIN
    -- Remove trailing period from domain
@@ -118,6 +117,7 @@ CREATE TABLE IF NOT EXISTS `http_services` (
     `actual_path`   VARCHAR(255) NOT NULL,
     `raw_result`    TEXT NOT NULL,
     INDEX `domain_id_ind`(`domain_id`),
+    INDEX `rev_domain_ind`(`rev_domain`),
     INDEX `page_title_ind`(`page_title`),
     UNIQUE (`domain_id`, `secure`, `port`),
     FOREIGN KEY (`domain_id`)
