@@ -1,70 +1,45 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
+	"log"
 	"net/http"
-	"strings"
+
+	"github.com/Masterminds/squirrel"
 )
 
 type ApiHttpServiceResponse struct {
-	Domain string         `json:"domain"`
-	Data   map[string]any `json:"data"`
+	Domain   string         `json:"domain"`
+	Secure   int8           `json:"secure"`
+	Port     uint16         `json:"port"`
+	IsActive int8           `json:"is_active"`
+	Data     map[string]any `json:"data"`
 }
 
 func ApiHttpServicesSearch(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
-	var vals []any
-	query_buff := bytes.NewBufferString("SELECT domain, raw_result FROM http_services WHERE ")
-	has_condition := false
+	c, e := GetQuery2SqlConds(
+		r.URL.Query(),
+		map[string]Query2SqlCond{
+			"status_code": {Generator: EqualCondGenerator},
+			"port":        {Generator: EqualCondGenerator},
+			"title":       {Generator: BeginsWithCondGenerator},
+			"path":        {Generator: BeginsWithCondGenerator, Field: "actual_path"},
+			"secure":      {Generator: BoolCondGenerator},
+			"domain":      {Generator: SubDomainCondGenerator, Field: "rev_domain"},
+			"active":      {Generator: ToggleCondGenerator, Field: "is_active"},
+		},
+	)
 
-	if r.URL.Query().Has("title") {
-		vals = append(vals, SQLEscapeStringLike(r.URL.Query().Get("title"))+"%")
-		query_buff.WriteString(" page_title LIKE ? ")
-		has_condition = true
+	if e != nil {
+		return nil, http.StatusBadRequest, "BAD_REQUEST", e
 	}
 
-	if r.URL.Query().Has("status_code") {
-		query_buff.WriteString(Ternary(has_condition, " AND ", ""))
-		vals = append(vals, r.URL.Query().Get("status_code"))
-		query_buff.WriteString(" status_code=? ")
-		has_condition = true
-	}
+	q, v, _ := squirrel.
+		Select("domain", "raw_result", "secure", "port", "is_active").
+		From("http_services").Where(c).ToSql()
 
-	if r.URL.Query().Has("domain") {
-		// TODO: idna
-		query_buff.WriteString(Ternary(has_condition, " AND ", ""))
-		vals = append(vals, "%"+SQLEscapeStringLike(r.URL.Query().Get("domain")))
-		query_buff.WriteString(" rev_domain LIKE REVERSE(?) ")
-		has_condition = true
-	}
-
-	if r.URL.Query().Has("port") {
-		query_buff.WriteString(Ternary(has_condition, " AND ", ""))
-		vals = append(vals, r.URL.Query().Get("port"))
-		query_buff.WriteString(" port=? ")
-		has_condition = true
-	}
-
-	if r.URL.Query().Has("secure") {
-		if r.URL.Query().Get("secure") == "true" {
-			query_buff.WriteString(" AND secure=1 ")
-		} else {
-			query_buff.WriteString(" AND secure=0 ")
-		}
-	}
-
-	// NOTE: keep it at the end of conditions
-	if !r.URL.Query().Has("allow_inactive") ||
-		strings.ToLower(r.URL.Query().Get("allow_inactive")) == "false" {
-		query_buff.WriteString(" AND is_active=1 ")
-	}
-
-	if !has_condition {
-		return nil, http.StatusBadRequest, "NO_CONDITION", errors.New("please provide at least one condition")
-	}
-
-	rows, err := GlobalContext.Database.Queryx(query_buff.String(), vals...)
+	log.Println(q, v)
+	rows, err := GlobalContext.Database.Queryx(q, v...)
 	if err != nil {
 		return nil, http.StatusInternalServerError, "SQL_ERROR", err
 	}
@@ -76,7 +51,10 @@ func ApiHttpServicesSearch(w http.ResponseWriter, r *http.Request) (any, int, st
 		var row HttpServiceRow
 		AssertError(rows.StructScan(&row))
 		json_tmp := ApiHttpServiceResponse{
-			Domain: row.Domain,
+			Domain:   row.Domain,
+			Secure:   row.Secure,
+			Port:     row.Port,
+			IsActive: row.IsActive,
 		}
 		json.Unmarshal([]byte(row.RawResult), &json_tmp.Data)
 		ret = append(ret, json_tmp)
