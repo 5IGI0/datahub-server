@@ -42,9 +42,11 @@ func StartApi() {
 	r.HandleFunc("/api/v1/services/http", ApiDecorator(ApiHttpServicesSearch))
 	r.HandleFunc("/api/v1/services/http_by_header", ApiDecorator(ApiHttpServicesSearchByHeader))
 	r.HandleFunc("/api/v1/services/http_by_meta", ApiDecorator(ApiHttpServicesSearchByMeta))
+	r.HandleFunc("/api/v1/services/http_by_robots_txt", ApiDecorator(ApiHttpServicesSearchByRobotsTxt))
 	r.HandleFunc("/api/v1/services/http/{page}", ApiDecorator(ApiHttpServicesSearch))
 	r.HandleFunc("/api/v1/services/http_by_header/{page}", ApiDecorator(ApiHttpServicesSearchByHeader))
 	r.HandleFunc("/api/v1/services/http_by_meta/{page}", ApiDecorator(ApiHttpServicesSearchByMeta))
+	r.HandleFunc("/api/v1/services/http_by_robots_txt/{page}", ApiDecorator(ApiHttpServicesSearchByRobotsTxt))
 
 	/* IP-related */
 	r.HandleFunc("/api/v1/addrs/addr/{addr}", ApiDecorator(ApiAddrInfo))

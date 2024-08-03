@@ -90,14 +90,19 @@ PAGE_COMPRESSION_LEVEL=9;
 
 CREATE TABLE IF NOT EXISTS `dns_records` (
     `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    `domain_id`     BIGINT NOT NULL,
+    `domain_id`     BIGINT UNSIGNED NOT NULL,
     `is_active`     TINYINT UNSIGNED NOT NULL,
     `type`          SMALLINT UNSIGNED NOT NULL,
     `addr`          VARCHAR(255),
     `priority`      SMALLINT UNSIGNED,
-    UNIQUE (`domain_id`,`type`,`addr`,`priority`),
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `domain_id`,":",`type`,":",IFNULL(`addr`,''),":",IFNULL(`priority`,'0')))),
+    UNIQUE (`hash_id`),
     INDEX `domain_id_ind`(`domain_id`),
-    INDEX `addr_ind`(`addr`)
+    INDEX `addr_ind`(`addr`),
+    FOREIGN KEY (`domain_id`)
+        REFERENCES `domains`(`id`)
+        ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS `http_services` (
@@ -129,10 +134,13 @@ CREATE TABLE IF NOT EXISTS `http_document_meta` (
     `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `service_id`    BIGINT UNSIGNED NOT NULL,
     `is_active`     TINYINT         NOT NULL,
-    `property`      VARCHAR(127)    NOT NULL,
-    `content`       VARCHAR(127)    NOT NULL,
+    `property`      VARCHAR(127) CHARACTER SET utf8mb4 NOT NULL,
+    `content`       VARCHAR(127) CHARACTER SET utf8mb4 NOT NULL,
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `service_id`,':',`property`,':',`content`))),
+    UNIQUE (`hash_id`),
     INDEX `service_id_index`(`service_id`),
-    UNIQUE (`service_id`, `property`, `content`),
+    INDEX `property_content_ind`(`property`,`content`),
     FOREIGN KEY (`service_id`)
         REFERENCES `http_services`(`id`)
         ON DELETE CASCADE
@@ -142,11 +150,30 @@ CREATE TABLE IF NOT EXISTS `http_headers` (
     `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `service_id`    BIGINT UNSIGNED NOT NULL,
     `is_active`     TINYINT UNSIGNED NOT NULL,
-    `key`           VARCHAR(127)    NOT NULL,
-    `value`         VARCHAR(127)    NOT NULL,
+    `key`           VARCHAR(127) CHARACTER SET utf8mb4 NOT NULL,
+    `value`         VARCHAR(127) CHARACTER SET utf8mb4 NOT NULL,
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `service_id`,':',`key`,':',`value`))),
+    UNIQUE (`hash_id`),
     INDEX `service_id_index`(`service_id`),
     INDEX `key_value_ind`(`key`,`value`),
-    UNIQUE (`service_id`,`key`,`value`),
+    FOREIGN KEY (`service_id`)
+        REFERENCES `http_services`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `http_robots_txt` (
+    `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `service_id`    BIGINT UNSIGNED NOT NULL,
+    `is_active`     TINYINT UNSIGNED NOT NULL,
+    `useragent`     VARCHAR(63)  CHARACTER SET utf8mb4 NOT NULL,
+    `directive`     VARCHAR(127) CHARACTER SET utf8mb4 NOT NULL,
+    `value`         VARCHAR(512) CHARACTER SET utf8mb4 NOT NULL,
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `service_id`,':',`useragent`,':',`directive`,':',`value`))),
+    UNIQUE (`hash_id`),
+    INDEX `service_id_index`(`service_id`),
+    INDEX `directive_ind`(`directive`,`value`),
     FOREIGN KEY (`service_id`)
         REFERENCES `http_services`(`id`)
         ON DELETE CASCADE

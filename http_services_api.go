@@ -197,3 +197,70 @@ func ApiHttpServicesSearchByMeta(w http.ResponseWriter, r *http.Request) (any, i
 
 	return ret, 200, "", nil
 }
+
+func ApiHttpServicesSearchByRobotsTxt(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
+	if !r.URL.Query().Has("directive") {
+		return nil, http.StatusBadRequest, "MISSING_PARAM", errors.New("the parameter `directive` is mandatory")
+	}
+
+	c, e := GetQuery2SqlConds(
+		r.URL.Query(),
+		map[string]Query2SqlCond{
+			/* domain-related */
+			"status_code":    {Generator: EqualCondGenerator, Field: "`http_services`.`status_code`"},
+			"port":           {Generator: EqualCondGenerator, Field: "`http_services`.`port`"},
+			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`title`"},
+			"path":           {Generator: BeginsWithCondGenerator, Field: "`http_services`.`actuel_path`"},
+			"secure":         {Generator: BoolCondGenerator, Field: "`http_services`.`secure`"},
+			"domain":         {Generator: SubDomainCondGenerator, Field: "`http_services`.`rev_domain`"},
+			"service_active": {Generator: ToggleCondGenerator, Field: "`http_services`.`is_active`", Default: "true"},
+
+			/* header related */
+			"active":    {Generator: ToggleCondGenerator, Field: "`http_robots_txt`.`is_active`", Default: "true"},
+			"useragent": {Generator: BeginsWithCondGenerator, Field: "`http_robots_txt`.`useragent`"},
+			"directive": {Generator: BeginsWithCondGenerator, Field: "`http_robots_txt`.`directive`"},
+			"val":       {Generator: BeginsWithCondGenerator, Field: "`http_robots_txt`.`value`"},
+		},
+	)
+
+	if e != nil {
+		return nil, http.StatusBadRequest, "BAD_REQUEST", e
+	}
+
+	page, page_size := Req2Page(r)
+	q, v, _ := squirrel.
+		Select(
+			"`http_services`.`domain`",
+			"`http_services`.`raw_result`",
+			"`http_services`.`secure`",
+			"`http_services`.`port`",
+			"`http_services`.`is_active`").
+		From("`http_robots_txt`").
+		Limit(uint64(page_size)).
+		Offset(uint64((page - 1) * page_size)).
+		Join("`http_services` ON `http_services`.`id`=`http_robots_txt`.`service_id`").
+		Where(c).ToSql()
+
+	rows, err := GlobalContext.Database.Queryx(q, v...)
+	if err != nil {
+		return nil, http.StatusInternalServerError, "SQL_ERROR", err
+	}
+	defer rows.Close()
+
+	var ret []ApiHttpServiceResponse
+
+	for rows.Next() {
+		var row HttpServiceRow
+		AssertError(rows.StructScan(&row))
+		json_tmp := ApiHttpServiceResponse{
+			Domain:   row.Domain,
+			Secure:   row.Secure,
+			Port:     row.Port,
+			IsActive: row.IsActive,
+		}
+		json.Unmarshal([]byte(row.RawResult), &json_tmp.Data)
+		ret = append(ret, json_tmp)
+	}
+
+	return ret, 200, "", nil
+}

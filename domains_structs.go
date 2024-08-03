@@ -1,6 +1,11 @@
 package main
 
-import "database/sql"
+import (
+	"crypto/sha1"
+	"database/sql"
+	"encoding/hex"
+	"fmt"
+)
 
 type DomainRow struct {
 	Id           int64          `db:"id"`
@@ -28,6 +33,18 @@ type DNSRecordRow struct {
 	Type     uint16         `db:"type"`
 	Addr     sql.NullString `db:"addr"`
 	Priority sql.NullInt32  `db:"priority"`
+	HashId   string         `db:"hash_id"`
+}
+
+func (r *DNSRecordRow) CompHashId() string {
+	h := sha1.Sum([]byte(
+		fmt.Sprintf(
+			"%v:%v:%v:%v",
+			r.DomainId,
+			r.Type,
+			r.Addr.String,
+			r.Priority.Int32)))
+	return hex.EncodeToString(h[:])
 }
 
 const (

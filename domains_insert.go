@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bytes"
+	"database/sql"
 	"encoding/json"
 	"strconv"
 	"strings"
 
+	"github.com/Masterminds/squirrel"
 	"golang.org/x/net/idna"
 )
 
@@ -80,29 +81,24 @@ func DomainInsertScan(Scan map[string]any) error {
 }
 
 func DomainInsertRecords(domain_id int64, records map[string]any) {
-	type UnifiedRecord struct {
-		Type     uint16
-		Addr     *string
-		Priority *uint16
+	var Records []DNSRecordRow
+	var PresentRecords []DNSRecordRow
+
+	FillRecord := func(Type uint16, records []any) {
+		for _, record := range records {
+			str_record, _ := record.(string)
+			Records = append(Records, DNSRecordRow{
+				Type: Type,
+				Addr: sql.NullString{Valid: true, String: str_record}})
+		}
 	}
-	var output_records []UnifiedRecord
 
 	if a_records, e := records["A"].([]any); e {
-		for _, record := range a_records {
-			str_record, _ := record.(string)
-			output_records = append(output_records, UnifiedRecord{
-				Type: 1,
-				Addr: &str_record})
-		}
+		FillRecord(1, a_records)
 	}
 
-	if aaaa_records, e := records["AAAA"].([]any); e {
-		for _, record := range aaaa_records {
-			str_record, _ := record.(string)
-			output_records = append(output_records, UnifiedRecord{
-				Type: 28,
-				Addr: &str_record})
-		}
+	if a_records, e := records["AAAA"].([]any); e {
+		FillRecord(28, a_records)
 	}
 
 	if mx_records, e := records["MX"].([]any); e {
@@ -114,108 +110,96 @@ func DomainInsertRecords(domain_id int64, records map[string]any) {
 				continue
 			}
 			priority, _ := strconv.Atoi(split[0])
-			uin16_prit := uint16(priority)
 
-			output_records = append(output_records, UnifiedRecord{
+			Records = append(Records, DNSRecordRow{
 				Type:     28,
-				Addr:     &split[1],
-				Priority: &uin16_prit})
+				Addr:     sql.NullString{Valid: true, String: split[1]},
+				Priority: sql.NullInt32{Valid: true, Int32: int32(priority)},
+			})
 		}
 	}
 
-	if len(output_records) == 0 {
+	for i := range Records {
+		Records[i].DomainId = domain_id
+		Records[i].HashId = Records[i].CompHashId()
+	}
+
+	if len(Records) == 0 {
 		GlobalContext.Database.MustExec("UPDATE dns_records SET is_active=0 WHERE domain_id=?", domain_id)
 		return
 	}
 
-	already_present_records := []DNSRecordRow{}
-
 	// reuse records that already exist
 	// TODO: chunk query, it's unlikely to exceed the placeholder limit, but not impossible
 	{
-		var vars = []any{domain_id}
-		buff := bytes.NewBufferString("SELECT id, type, addr, priority FROM dns_records WHERE domain_id=? AND (")
-		for i, record := range output_records {
-			if i != 0 {
-				buff.WriteString(" OR ")
-			}
-			if len(output_records) != 1 {
-				buff.WriteByte('(')
-			}
+		var conds squirrel.Or
 
-			buff.WriteString("type=? AND ")
-			vars = append(vars, record.Type)
-			if record.Addr == nil {
-				buff.WriteString("addr IS NULL AND ")
-			} else {
-				buff.WriteString("addr=? AND ")
-				vars = append(vars, *record.Addr)
-			}
-			if record.Priority == nil {
-				buff.WriteString("priority IS NULL")
-			} else {
-				buff.WriteString("priority=?")
-				vars = append(vars, *record.Priority)
-			}
-
-			if len(output_records) != 1 {
-				buff.WriteByte(')')
-			}
+		for _, r := range Records {
+			conds = append(conds, squirrel.Eq{"hash_id": r.HashId})
 		}
-		buff.WriteByte(')')
-		rows, err := GlobalContext.Database.Queryx(buff.String(), vars...)
+
+		q, v := squirrel.
+			Select("id", "hash_id").
+			From("dns_records").
+			Where(conds).MustSql()
+
+		rows, err := GlobalContext.Database.Queryx(q, v...)
 		AssertError(err)
 
 		for rows.Next() {
 			var row DNSRecordRow
 			AssertError(rows.StructScan(&row))
-
-			already_present_records = append(already_present_records, row)
+			PresentRecords = append(PresentRecords, row)
 		}
 	}
 
-	if len(already_present_records) != 0 {
-		var vars = []any{domain_id}
-		buff := bytes.NewBufferString("UPDATE dns_records SET is_active=0 WHERE domain_id=? AND id NOT IN (")
-		for i, record := range already_present_records {
-			if i != 0 {
-				buff.WriteString(",?")
-			} else {
-				buff.WriteByte('?')
-			}
-			vars = append(vars, record.Id)
+	/* update is_active */
+	{
+		var conds squirrel.And
+
+		for _, r := range PresentRecords {
+			conds = append(conds, squirrel.NotEq{"id": r.Id})
 		}
-		buff.WriteByte(')')
-		GlobalContext.Database.MustExec(buff.String(), vars...)
-	} else {
-		GlobalContext.Database.MustExec("UPDATE dns_records SET is_active=0 WHERE domain_id=?", domain_id)
+		q, v := squirrel.
+			Update("dns_records").
+			Set("is_active", 0).
+			Where(conds).MustSql()
+		GlobalContext.Database.MustExec(q, v...)
 	}
 
-	for _, record := range output_records {
+	for _, record := range Records {
 		is_present := false
-		for _, present_record := range already_present_records {
-			/* check if it is the same */
-			if present_record.Type != record.Type {
-				continue
-			} else if record.Addr == nil && present_record.Addr.Valid {
-				continue
-			} else if record.Addr != nil && *record.Addr != present_record.Addr.String {
-				continue
-			} else if record.Priority == nil && present_record.Priority.Valid {
-				continue
-			} else if record.Priority != nil && present_record.Priority.Int32 != int32(*record.Priority) {
-				continue
+		for _, PresentRecord := range PresentRecords {
+			if PresentRecord.HashId == record.HashId {
+				is_present = true
+				break
 			}
-
-			is_present = true
-			break
 		}
-
 		if is_present {
 			continue
 		}
-		GlobalContext.Database.MustExec(`
-		INSERT INTO dns_records(domain_id,is_active,type,addr,priority) VALUE(?,1,?,?,?)`,
-			domain_id, record.Type, record.Addr, record.Priority)
+
+		SetMap := make(map[string]any)
+		SetMap["domain_id"] = domain_id
+		SetMap["is_active"] = 1
+		SetMap["type"] = record.Type
+
+		if record.Addr.Valid {
+			SetMap["addr"] = record.Addr.String
+		} else {
+			SetMap["addr"] = nil
+		}
+
+		if record.Priority.Valid {
+			SetMap["priority"] = record.Priority.Int32
+		} else {
+			SetMap["priority"] = nil
+		}
+
+		q, v := squirrel.
+			Insert("dns_records").
+			SetMap(SetMap).
+			MustSql()
+		GlobalContext.Database.MustExec(q, v...)
 	}
 }
