@@ -10,7 +10,7 @@ central server for managing/aggregating all data received from the various sourc
 - [X] use ORM or QueryBuilder
 
 unit test
-- [ ] check that client-side's hash_ids matches database ones
+- [ ] check that client-side's hash_ids match database ones
 
 http servers
 
@@ -20,8 +20,8 @@ http servers
 - [X] search by html meta
 - [X] store robots.txt directives
 - [X] search by robots.txt directive
-- [ ] store certificates
-- [ ] search by certificate
+- [X] store certificates
+- [X] search by certificate
 
 http services to scrape
 
@@ -30,6 +30,7 @@ http services to scrape
 - [ ] gitea/gogs/forgejo
 
 links to scrape
+
 - [ ] discord invite
 - [ ] telegram link
 - [ ] linktree

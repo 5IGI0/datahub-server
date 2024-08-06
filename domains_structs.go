@@ -36,7 +36,14 @@ type DNSRecordRow struct {
 	HashId   string         `db:"hash_id"`
 }
 
-func (r *DNSRecordRow) CompHashId() string {
+func (r DNSRecordRow) GetId() int64 { return r.Id }
+func (r DNSRecordRow) GetHashId() string {
+	if r.HashId == "" {
+		return r.CompHashId()
+	}
+	return r.HashId
+}
+func (r DNSRecordRow) CompHashId() string {
 	h := sha1.Sum([]byte(
 		fmt.Sprintf(
 			"%v:%v:%v:%v",

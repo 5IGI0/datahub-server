@@ -8,22 +8,56 @@ import (
 
 func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8, data map[string]any) {
 	var service_id int64 = 0
+	var cert_id any = nil
 
 	raw_result, _ := json.Marshal(data)
+
+	if certificate, e := data["certificate"].(map[string]any); e {
+		var cert_row SSLCertificateRow
+		AssertError(cert_row.FromMap(certificate))
+		cert_id = SSLCertificateInsert(cert_row)
+	}
 
 	GlobalContext.Database.Get(&service_id, "SELECT id FROM http_services WHERE domain_id=? AND secure=? AND port=?",
 		domain_id, secure, port)
 
+	page_title := data["title"]
+	if page_title != nil {
+		page_title = TruncateText(data["title"].(string), 255)
+	}
+
+	is_new_cert := true
 	if service_id == 0 {
 		service_id, _ = GlobalContext.Database.MustExec(`INSERT INTO http_services(
-			      is_active,domain_id,domain,secure,port,page_title,status_code,actual_path,raw_result)
-			VALUE(1,?,?,?,?,?,?,?,?)`,
-			domain_id, domain, secure, port, data["title"], data["status_code"], data["path"], raw_result).LastInsertId()
+			      is_active,domain_id,domain,secure,port,page_title,status_code,actual_path,raw_result,certificate_id)
+			VALUE(1,?,?,?,?,?,?,?,?,?)`,
+			domain_id, domain, secure, port, page_title, data["status_code"], TruncateText(data["path"].(string), 255), raw_result, cert_id).LastInsertId()
+
 	} else {
+		is_new_cert = false
 		GlobalContext.Database.MustExec(`UPDATE http_services
-		SET is_active=1,page_title=?,status_code=?,actual_path=?,raw_result=?
+		SET is_active=1,page_title=?,status_code=?,actual_path=?,raw_result=?,certificate_id=?
 		WHERE id=?`,
-			data["title"], data["status_code"], data["path"], raw_result, service_id)
+			page_title, data["status_code"], TruncateText(data["path"].(string), 255), raw_result, cert_id, service_id)
+	}
+
+	if cert_id != nil {
+		if !is_new_cert {
+			old_cert_id := 0
+			GlobalContext.Database.Get(&old_cert_id, `
+				SELECT certificate_id FROM http_certificate_history WHERE service_id=? ORDER BY observed_at DESC LIMIT 1
+			`, service_id)
+
+			if old_cert_id != cert_id {
+				is_new_cert = true
+			}
+		}
+
+		if is_new_cert {
+			GlobalContext.Database.MustExec(`
+					INSERT INTO http_certificate_history(service_id, certificate_id, observed_at)
+					VALUE(?,?,NOW())`, service_id, cert_id)
+		}
 	}
 
 	HttpServiceInsertHeader(service_id, data["headers"].(map[string]any))
@@ -35,14 +69,7 @@ func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8,
 
 func HttpServiceInsertHeader(service_id int64, headers map[string]any) {
 	var Headers []HttpHeaderRow
-	var PresentHeaders []HttpHeaderRow
 
-	if len(headers) == 0 {
-		GlobalContext.Database.Exec("UPDATE http_headers SET is_active=0 WHERE service_id=?")
-		return
-	}
-
-	/* parse */
 	for k, v := range headers {
 		var Header HttpHeaderRow
 
@@ -54,82 +81,18 @@ func HttpServiceInsertHeader(service_id int64, headers map[string]any) {
 		Headers = append(Headers, Header)
 	}
 
-	/* get present directives */
-	{
-		var conds squirrel.Or
-		for _, h := range Headers {
-			conds = append(conds, squirrel.Eq{
-				"hash_id": h.HashId})
-		}
-
-		q, v, _ := squirrel.
-			Select("id", "hash_id").
-			From("http_headers").
-			Where(conds).ToSql()
-
-		rows, err := GlobalContext.Database.Queryx(q, v...)
-		AssertError(err)
-		defer rows.Close()
-
-		for rows.Next() {
-			var Header HttpHeaderRow
-			AssertError(rows.StructScan(&Header))
-			PresentHeaders = append(PresentHeaders, Header)
-		}
-	}
-
-	if len(PresentHeaders) == 0 {
-		GlobalContext.Database.MustExec("UPDATE http_headers SET is_active=0 WHERE service_id=?", service_id)
-	} else {
-		conds := squirrel.And{squirrel.Eq{"service_id": service_id}}
-
-		for _, h := range PresentHeaders {
-			conds = append(conds, squirrel.NotEq{"id": h.Id})
-		}
-
-		q, v := squirrel.
-			Update("http_headers").
-			Set("is_active", 0).
-			Where(conds).
-			MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-	}
-
-	for _, Header := range Headers {
-		is_present := false
-		for _, PHeader := range PresentHeaders {
-			if PHeader.HashId == Header.HashId {
-				is_present = true
-				break
-			}
-		}
-
-		if is_present {
-			continue
-		}
-
-		q, v := squirrel.
-			Insert("http_headers").SetMap(map[string]interface{}{
-			"`service_id`": Header.ServiceId,
+	InsertHashIdBasedRows(Headers, "http_headers", squirrel.Eq{"service_id": service_id}, func(row HttpHeaderRow) map[string]any {
+		return map[string]any{
+			"`service_id`": service_id,
 			"`is_active`":  1,
-			"`key`":        Header.Key,
-			"`value`":      Header.Value,
-		}).MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-		PresentHeaders = append(PresentHeaders, Header)
-	}
+			"`key`":        row.Key,
+			"`value`":      row.Value}
+	}, func(HttpHeaderRow, int64) map[string]any { return nil })
 }
+
 func HttpServiceInsertDocumentMeta(service_id int64, meta []any) {
 	var MetaList []HttpDocumentMetaRow
-	var PresentMeta []HttpDocumentMetaRow
 
-	if len(meta) == 0 {
-		GlobalContext.Database.MustExec("UPDATE `http_document_meta` SET is_active=0 WHERE service_id=?",
-			service_id)
-		return
-	}
-
-	/* parse */
 	for _, m := range meta {
 		var Meta HttpDocumentMetaRow
 
@@ -146,85 +109,18 @@ func HttpServiceInsertDocumentMeta(service_id int64, meta []any) {
 		MetaList = append(MetaList, Meta)
 	}
 
-	/* get present directives */
-	{
-		var conds squirrel.Or
-		for _, m := range MetaList {
-			conds = append(conds, squirrel.Eq{
-				"hash_id": m.HashId})
-		}
-
-		q, v, _ := squirrel.
-			Select("id", "hash_id").
-			From("http_robots_txt").
-			Where(conds).ToSql()
-
-		rows, err := GlobalContext.Database.Queryx(q, v...)
-		AssertError(err)
-		defer rows.Close()
-
-		for rows.Next() {
-			var Meta HttpDocumentMetaRow
-			AssertError(rows.StructScan(&Meta))
-			PresentMeta = append(PresentMeta, Meta)
-		}
-	}
-
-	/* update is_actives */
-	if len(PresentMeta) == 0 {
-		GlobalContext.Database.MustExec("UPDATE `http_robots_txt` SET is_active=0 WHERE service_id=?",
-			service_id)
-	} else {
-		conds := squirrel.And{squirrel.Eq{"service_id": service_id}}
-
-		for _, m := range PresentMeta {
-			conds = append(conds, squirrel.NotEq{"id": m.Id})
-		}
-
-		q, v := squirrel.
-			Update("http_robots_txt").
-			Set("is_active", 0).
-			Where(conds).
-			MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-	}
-
-	/* insert */
-	for _, m := range MetaList {
-		is_present := false
-		for _, pm := range PresentMeta {
-			if pm.HashId == m.HashId {
-				is_present = true
-				break
-			}
-		}
-		if is_present {
-			continue
-		}
-
-		q, v := squirrel.
-			Insert("http_document_meta").SetMap(map[string]interface{}{
+	InsertHashIdBasedRows(MetaList, "http_document_meta", squirrel.Eq{"service_id": service_id}, func(row HttpDocumentMetaRow) map[string]any {
+		return map[string]any{
 			"service_id": service_id,
 			"is_active":  1,
-			"property":   m.Property,
-			"content":    m.Content,
-		}).MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-		PresentMeta = append(PresentMeta, m)
-	}
+			"property":   row.Property,
+			"content":    row.Content}
+	}, func(HttpDocumentMetaRow, int64) map[string]any { return nil })
 }
 
 func HttpServiceInsertRobotTxt(service_id int64, directives []any) {
 	var Directives []HttpRobotsTxtRow
-	var PresentDirectives []HttpRobotsTxtRow
 
-	if len(directives) == 0 {
-		GlobalContext.Database.MustExec("UPDATE `http_robots_txt` SET is_active=0 WHERE service_id=?",
-			service_id)
-		return
-	}
-
-	/* parse */
 	for _, d := range directives {
 		var Directive HttpRobotsTxtRow
 
@@ -242,72 +138,12 @@ func HttpServiceInsertRobotTxt(service_id int64, directives []any) {
 		Directives = append(Directives, Directive)
 	}
 
-	/* get present directives */
-	{
-		var conds squirrel.Or
-		for _, d := range Directives {
-			conds = append(conds, squirrel.Eq{
-				"hash_id": d.CompHashId()})
-		}
-
-		q, v, _ := squirrel.
-			Select("id", "hash_id").
-			From("http_robots_txt").
-			Where(conds).ToSql()
-
-		rows, err := GlobalContext.Database.Queryx(q, v...)
-		AssertError(err)
-		defer rows.Close()
-
-		for rows.Next() {
-			var Directive HttpRobotsTxtRow
-			AssertError(rows.StructScan(&Directive))
-			PresentDirectives = append(PresentDirectives, Directive)
-		}
-	}
-
-	/* update is_actives */
-	if len(PresentDirectives) == 0 {
-		GlobalContext.Database.MustExec("UPDATE `http_robots_txt` SET is_active=0 WHERE service_id=?",
-			service_id)
-	} else {
-		conds := squirrel.And{squirrel.Eq{"service_id": service_id}}
-
-		for _, d := range PresentDirectives {
-			conds = append(conds, squirrel.NotEq{"id": d.Id})
-		}
-
-		q, v := squirrel.
-			Update("http_robots_txt").
-			Set("is_active", 0).
-			Where(conds).
-			MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-	}
-
-	/* insert */
-	for _, d := range Directives {
-		is_present := false
-		d.HashId = d.CompHashId()
-		for _, pd := range PresentDirectives {
-			if pd.HashId == d.HashId {
-				is_present = true
-				break
-			}
-		}
-		if is_present {
-			continue
-		}
-
-		q, v := squirrel.
-			Insert("http_robots_txt").SetMap(map[string]interface{}{
+	InsertHashIdBasedRows(Directives, "http_robots_txt", squirrel.Eq{"service_id": service_id}, func(row HttpRobotsTxtRow) map[string]any {
+		return map[string]any{
 			"service_id": service_id,
 			"is_active":  1,
-			"useragent":  d.UserAgent,
-			"directive":  d.Directive,
-			"value":      d.Value,
-		}).MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-		PresentDirectives = append(PresentDirectives, d)
-	}
+			"useragent":  row.UserAgent,
+			"directive":  row.Directive,
+			"value":      row.Value}
+	}, func(HttpRobotsTxtRow, int64) map[string]any { return nil })
 }

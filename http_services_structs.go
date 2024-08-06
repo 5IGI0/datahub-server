@@ -30,7 +30,14 @@ type HttpDocumentMetaRow struct {
 	HashId    string `db:"hash_id"`
 }
 
-func (r *HttpDocumentMetaRow) CompHashId() string {
+func (r HttpDocumentMetaRow) GetId() int64 { return r.Id }
+func (r HttpDocumentMetaRow) GetHashId() string {
+	if r.HashId == "" {
+		return r.CompHashId()
+	}
+	return r.HashId
+}
+func (r HttpDocumentMetaRow) CompHashId() string {
 	h := sha1.Sum([]byte(
 		fmt.Sprintf(
 			"%v:%v:%v",
@@ -49,7 +56,14 @@ type HttpHeaderRow struct {
 	HashId    string `db:"hash_id"`
 }
 
-func (r *HttpHeaderRow) CompHashId() string {
+func (r HttpHeaderRow) GetId() int64 { return r.Id }
+func (r HttpHeaderRow) GetHashId() string {
+	if r.HashId == "" {
+		return r.CompHashId()
+	}
+	return r.HashId
+}
+func (r HttpHeaderRow) CompHashId() string {
 	h := sha1.Sum([]byte(
 		fmt.Sprintf(
 			"%v:%v:%v",
@@ -69,7 +83,14 @@ type HttpRobotsTxtRow struct {
 	HashId    string `db:"hash_id"`
 }
 
-func (r *HttpRobotsTxtRow) CompHashId() string {
+func (r HttpRobotsTxtRow) GetId() int64 { return r.Id }
+func (r HttpRobotsTxtRow) GetHashId() string {
+	if r.HashId == "" {
+		return r.CompHashId()
+	}
+	return r.HashId
+}
+func (r HttpRobotsTxtRow) CompHashId() string {
 	h := sha1.Sum([]byte(
 		fmt.Sprintf(
 			"%v:%v:%v:%v",

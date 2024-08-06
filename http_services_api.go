@@ -264,3 +264,66 @@ func ApiHttpServicesSearchByRobotsTxt(w http.ResponseWriter, r *http.Request) (a
 
 	return ret, 200, "", nil
 }
+
+func ApiHttpServicesSearchByCert(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
+	c, e := GetQuery2SqlConds(
+		r.URL.Query(),
+		map[string]Query2SqlCond{
+			/* domain-related */
+			"status_code":    {Generator: EqualCondGenerator, Field: "`http_services`.`status_code`"},
+			"port":           {Generator: EqualCondGenerator, Field: "`http_services`.`port`"},
+			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`title`"},
+			"path":           {Generator: BeginsWithCondGenerator, Field: "`http_services`.`actuel_path`"},
+			"secure":         {Generator: BoolCondGenerator, Field: "`http_services`.`secure`"},
+			"domain":         {Generator: SubDomainCondGenerator, Field: "`http_services`.`rev_domain`"},
+			"service_active": {Generator: ToggleCondGenerator, Field: "`http_services`.`is_active`", Default: "true"},
+
+			/* header related */
+			"issuer_name":  {Generator: BeginsWithCondGenerator, Field: "`ssl_certificates`.`issuer_name`"},
+			"issuer_orga":  {Generator: BeginsWithCondGenerator, Field: "`ssl_certificates`.`issuer_orga`"},
+			"subject_name": {Generator: BeginsWithCondGenerator, Field: "`ssl_certificates`.`subject_name`"},
+			"subject_orga": {Generator: BeginsWithCondGenerator, Field: "`ssl_certificates`.`subject_orga`"},
+		},
+	)
+
+	if e != nil {
+		return nil, http.StatusBadRequest, "BAD_REQUEST", e
+	}
+
+	page, page_size := Req2Page(r)
+	q, v, _ := squirrel.
+		Select(
+			"`http_services`.`domain`",
+			"`http_services`.`raw_result`",
+			"`http_services`.`secure`",
+			"`http_services`.`port`",
+			"`http_services`.`is_active`").
+		From("`ssl_certificates`").
+		Limit(uint64(page_size)).
+		Offset(uint64((page - 1) * page_size)).
+		Join("`http_services` ON `http_services`.`certificate_id`=`ssl_certificates`.`id`").
+		Where(c).ToSql()
+
+	rows, err := GlobalContext.Database.Queryx(q, v...)
+	if err != nil {
+		return nil, http.StatusInternalServerError, "SQL_ERROR", err
+	}
+	defer rows.Close()
+
+	var ret []ApiHttpServiceResponse
+
+	for rows.Next() {
+		var row HttpServiceRow
+		AssertError(rows.StructScan(&row))
+		json_tmp := ApiHttpServiceResponse{
+			Domain:   row.Domain,
+			Secure:   row.Secure,
+			Port:     row.Port,
+			IsActive: row.IsActive,
+		}
+		json.Unmarshal([]byte(row.RawResult), &json_tmp.Data)
+		ret = append(ret, json_tmp)
+	}
+
+	return ret, 200, "", nil
+}

@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS `domain_scan_archives` (
     `raw_result`    TEXT NOT NULL,
     INDEX `domain_id_ind`(`domain_id`)
 )
-PAGE_COMPRESSED = 1
+PAGE_COMPRESSED=1
 PAGE_COMPRESSION_LEVEL=9;
 
 CREATE TABLE IF NOT EXISTS `dns_records` (
@@ -98,10 +98,49 @@ CREATE TABLE IF NOT EXISTS `dns_records` (
     `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
                         `domain_id`,":",`type`,":",IFNULL(`addr`,''),":",IFNULL(`priority`,'0')))),
     UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
     INDEX `domain_id_ind`(`domain_id`),
     INDEX `addr_ind`(`addr`),
     FOREIGN KEY (`domain_id`)
         REFERENCES `domains`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `ssl_certificates` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `hash_id`           CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(`certificate`)),
+    `certificate`       BLOB NOT NULL,
+    `row_ver`           TINYINT UNSIGNED NOT NULL,
+
+    `issuer_rfc4514`    VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL,
+    `issuer_name`       VARCHAR(127) CHARACTER SET utf8mb4,
+    `issuer_orga`       VARCHAR(127) CHARACTER SET utf8mb4,
+    `subject_rfc4514`   VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL,    
+    `subject_name`      VARCHAR(127) CHARACTER SET utf8mb4,
+    `subject_orga`      VARCHAR(127) CHARACTER SET utf8mb4,
+    `valid_before`      DATETIME NOT NULL,
+    `valid_after`       DATETIME NOT NULL,
+    `public_key`        TEXT NOT NULL,
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `issuer_name_ind`(`issuer_name`),
+    INDEX `subject_name_ind`(`subject_name`),
+    INDEX `issuer_orga_ind`(`issuer_orga`),
+    INDEX `subject_orga_ind`(`subject_orga`),
+    UNIQUE (`hash_id`)
+)
+PAGE_COMPRESSED=1
+PAGE_COMPRESSION_LEVEL=9;
+
+CREATE TABLE IF NOT EXISTS `ssl_certificate_dns_names` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `certificate_id`    BIGINT UNSIGNED NOT NULL,
+    `domain`            VARCHAR(255) CHARACTER SET ascii NOT NULL,
+    `rev_domain`        VARCHAR(255) CHARACTER SET ascii GENERATED ALWAYS AS (REVERSE(`domain`)) VIRTUAL,
+    INDEX `cert_id_ind`(`certificate_id`,`domain`),
+    INDEX `domain_ind`(`domain`,`certificate_id`),
+    INDEX `rev_domain_ind`(`rev_domain`,`certificate_id`),
+    FOREIGN KEY (`certificate_id`)
+        REFERENCES `ssl_certificates`(`id`)
         ON DELETE CASCADE
 );
 
@@ -117,13 +156,15 @@ CREATE TABLE IF NOT EXISTS `http_services` (
     `port`          SMALLINT NOT NULL,
 
     -- actual data
-    `page_title`    VARCHAR(255),
-    `status_code`   SMALLINT NOT NULL,
-    `actual_path`   VARCHAR(255) NOT NULL,
-    `raw_result`    TEXT NOT NULL,
+    `page_title`        VARCHAR(255) CHARACTER SET utf8mb4 ,
+    `status_code`       SMALLINT NOT NULL,
+    `actual_path`       VARCHAR(255) NOT NULL,
+    `raw_result`        TEXT NOT NULL,
+    `certificate_id`    BIGINT UNSIGNED,
     INDEX `domain_id_ind`(`domain_id`),
     INDEX `rev_domain_ind`(`rev_domain`),
     INDEX `page_title_ind`(`page_title`),
+    INDEX `certificate_ind`(`certificate_id`),
     UNIQUE (`domain_id`, `secure`, `port`),
     FOREIGN KEY (`domain_id`)
         REFERENCES `domains`(`id`)
@@ -139,6 +180,7 @@ CREATE TABLE IF NOT EXISTS `http_document_meta` (
     `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
                         `service_id`,':',`property`,':',`content`))),
     UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
     INDEX `service_id_index`(`service_id`),
     INDEX `property_content_ind`(`property`,`content`),
     FOREIGN KEY (`service_id`)
@@ -155,6 +197,7 @@ CREATE TABLE IF NOT EXISTS `http_headers` (
     `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
                         `service_id`,':',`key`,':',`value`))),
     UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
     INDEX `service_id_index`(`service_id`),
     INDEX `key_value_ind`(`key`,`value`),
     FOREIGN KEY (`service_id`)
@@ -172,8 +215,21 @@ CREATE TABLE IF NOT EXISTS `http_robots_txt` (
     `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
                         `service_id`,':',`useragent`,':',`directive`,':',`value`))),
     UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
     INDEX `service_id_index`(`service_id`),
     INDEX `directive_ind`(`directive`,`value`),
+    FOREIGN KEY (`service_id`)
+        REFERENCES `http_services`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `http_certificate_history`(
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `service_id`        BIGINT UNSIGNED NOT NULL,
+    `certificate_id`    BIGINT UNSIGNED NOT NULL,
+    `observed_at`       DATETIME NOT NULL,
+    INDEX `service_ind`(`service_id`,`observed_at`),
+    INDEX `certificate_ind`(`certificate_id`,`service_id`),
     FOREIGN KEY (`service_id`)
         REFERENCES `http_services`(`id`)
         ON DELETE CASCADE

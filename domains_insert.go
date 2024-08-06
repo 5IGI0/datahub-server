@@ -82,7 +82,6 @@ func DomainInsertScan(Scan map[string]any) error {
 
 func DomainInsertRecords(domain_id int64, records map[string]any) {
 	var Records []DNSRecordRow
-	var PresentRecords []DNSRecordRow
 
 	FillRecord := func(Type uint16, records []any) {
 		for _, record := range records {
@@ -124,82 +123,13 @@ func DomainInsertRecords(domain_id int64, records map[string]any) {
 		Records[i].HashId = Records[i].CompHashId()
 	}
 
-	if len(Records) == 0 {
-		GlobalContext.Database.MustExec("UPDATE dns_records SET is_active=0 WHERE domain_id=?", domain_id)
-		return
-	}
-
-	// reuse records that already exist
-	// TODO: chunk query, it's unlikely to exceed the placeholder limit, but not impossible
-	{
-		var conds squirrel.Or
-
-		for _, r := range Records {
-			conds = append(conds, squirrel.Eq{"hash_id": r.HashId})
-		}
-
-		q, v := squirrel.
-			Select("id", "hash_id").
-			From("dns_records").
-			Where(conds).MustSql()
-
-		rows, err := GlobalContext.Database.Queryx(q, v...)
-		AssertError(err)
-
-		for rows.Next() {
-			var row DNSRecordRow
-			AssertError(rows.StructScan(&row))
-			PresentRecords = append(PresentRecords, row)
-		}
-	}
-
-	/* update is_active */
-	{
-		var conds squirrel.And
-
-		for _, r := range PresentRecords {
-			conds = append(conds, squirrel.NotEq{"id": r.Id})
-		}
-		q, v := squirrel.
-			Update("dns_records").
-			Set("is_active", 0).
-			Where(conds).MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-	}
-
-	for _, record := range Records {
-		is_present := false
-		for _, PresentRecord := range PresentRecords {
-			if PresentRecord.HashId == record.HashId {
-				is_present = true
-				break
-			}
-		}
-		if is_present {
-			continue
-		}
-
-		SetMap := make(map[string]any)
-		SetMap["domain_id"] = domain_id
-		SetMap["is_active"] = 1
-		SetMap["type"] = record.Type
-
-		if record.Addr.Valid {
-			SetMap["addr"] = record.Addr.String
-		} else {
-			SetMap["addr"] = nil
-		}
-
-		if record.Priority.Valid {
-			SetMap["priority"] = record.Priority.Int32
-		} else {
-			SetMap["priority"] = nil
-		}
-
-		q, v := squirrel.
-			Insert("dns_records").
-			SetMap(SetMap).
-			MustSql()
-		GlobalContext.Database.MustExec(q, v...)
-	}
+	InsertHashIdBasedRows(Records, "dns_records", squirrel.Eq{"domain_id": domain_id},
+		func(r DNSRecordRow) map[string]interface{} {
+			return map[string]any{
+				"domain_id": domain_id,
+				"is_active": 1,
+				"type":      r.Type,
+				"addr":      r.Addr,
+				"priority":  r.Priority}
+		}, func(DNSRecordRow, int64) map[string]interface{} { return nil })
 }
