@@ -82,7 +82,7 @@ DELIMITER ;
 CREATE TABLE IF NOT EXISTS `domain_scan_archives` (
     `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `domain_id`     BIGINT NOT NULL,
-    `raw_result`    TEXT NOT NULL,
+    `raw_result`    MEDIUMTEXT NOT NULL,
     INDEX `domain_id_ind`(`domain_id`)
 )
 PAGE_COMPRESSED=1
@@ -159,11 +159,12 @@ CREATE TABLE IF NOT EXISTS `http_services` (
     `page_title`        VARCHAR(255) CHARACTER SET utf8mb4 ,
     `status_code`       SMALLINT NOT NULL,
     `actual_path`       VARCHAR(255) NOT NULL,
-    `raw_result`        TEXT NOT NULL,
+    `raw_result`        MEDIUMTEXT NOT NULL,
     `certificate_id`    BIGINT UNSIGNED,
     INDEX `domain_id_ind`(`domain_id`),
     INDEX `rev_domain_ind`(`rev_domain`),
     INDEX `page_title_ind`(`page_title`),
+    INDEX `actual_path_ind`(`actual_path`),
     INDEX `certificate_ind`(`certificate_id`),
     UNIQUE (`domain_id`, `secure`, `port`),
     FOREIGN KEY (`domain_id`)

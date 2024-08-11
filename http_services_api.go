@@ -22,7 +22,7 @@ func ApiHttpServicesSearch(w http.ResponseWriter, r *http.Request) (any, int, st
 		map[string]Query2SqlCond{
 			"status_code": {Generator: EqualCondGenerator},
 			"port":        {Generator: EqualCondGenerator},
-			"title":       {Generator: BeginsWithCondGenerator},
+			"title":       {Generator: BeginsWithCondGenerator, Field: "page_title"},
 			"path":        {Generator: BeginsWithCondGenerator, Field: "actual_path"},
 			"secure":      {Generator: BoolCondGenerator},
 			"domain":      {Generator: SubDomainCondGenerator, Field: "rev_domain"},
@@ -77,7 +77,7 @@ func ApiHttpServicesSearchByHeader(w http.ResponseWriter, r *http.Request) (any,
 			/* domain-related */
 			"status_code":    {Generator: EqualCondGenerator, Field: "`http_services`.`status_code`"},
 			"port":           {Generator: EqualCondGenerator, Field: "`http_services`.`port`"},
-			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`title`"},
+			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`page_title`"},
 			"path":           {Generator: BeginsWithCondGenerator, Field: "`http_services`.`actuel_path`"},
 			"secure":         {Generator: BoolCondGenerator, Field: "`http_services`.`secure`"},
 			"domain":         {Generator: SubDomainCondGenerator, Field: "`http_services`.`rev_domain`"},
@@ -143,7 +143,7 @@ func ApiHttpServicesSearchByMeta(w http.ResponseWriter, r *http.Request) (any, i
 			/* domain-related */
 			"status_code":    {Generator: EqualCondGenerator, Field: "`http_services`.`status_code`"},
 			"port":           {Generator: EqualCondGenerator, Field: "`http_services`.`port`"},
-			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`title`"},
+			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`page_title`"},
 			"path":           {Generator: BeginsWithCondGenerator, Field: "`http_services`.`actuel_path`"},
 			"secure":         {Generator: BoolCondGenerator, Field: "`http_services`.`secure`"},
 			"domain":         {Generator: SubDomainCondGenerator, Field: "`http_services`.`rev_domain`"},
@@ -209,7 +209,7 @@ func ApiHttpServicesSearchByRobotsTxt(w http.ResponseWriter, r *http.Request) (a
 			/* domain-related */
 			"status_code":    {Generator: EqualCondGenerator, Field: "`http_services`.`status_code`"},
 			"port":           {Generator: EqualCondGenerator, Field: "`http_services`.`port`"},
-			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`title`"},
+			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`page_title`"},
 			"path":           {Generator: BeginsWithCondGenerator, Field: "`http_services`.`actuel_path`"},
 			"secure":         {Generator: BoolCondGenerator, Field: "`http_services`.`secure`"},
 			"domain":         {Generator: SubDomainCondGenerator, Field: "`http_services`.`rev_domain`"},
@@ -272,7 +272,7 @@ func ApiHttpServicesSearchByCert(w http.ResponseWriter, r *http.Request) (any, i
 			/* domain-related */
 			"status_code":    {Generator: EqualCondGenerator, Field: "`http_services`.`status_code`"},
 			"port":           {Generator: EqualCondGenerator, Field: "`http_services`.`port`"},
-			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`title`"},
+			"title":          {Generator: BeginsWithCondGenerator, Field: "`http_services`.`page_title`"},
 			"path":           {Generator: BeginsWithCondGenerator, Field: "`http_services`.`actuel_path`"},
 			"secure":         {Generator: BoolCondGenerator, Field: "`http_services`.`secure`"},
 			"domain":         {Generator: SubDomainCondGenerator, Field: "`http_services`.`rev_domain`"},

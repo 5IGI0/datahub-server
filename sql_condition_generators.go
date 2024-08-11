@@ -49,7 +49,7 @@ var SubDomainCondGenerator SubDomainCondGeneratorType
 func (SubDomainCondGeneratorType) Generate(field string, vals []string) ([]squirrel.Sqlizer, error) {
 	return []squirrel.Sqlizer{
 		squirrel.Expr(
-			"`"+field+"` LIKE REVERSE(?)",
+			field+" LIKE REVERSE(?)",
 			"%"+SQLEscapeStringLike(vals[0]),
 		)}, nil
 }

@@ -58,6 +58,9 @@ func StartApi() {
 	r.HandleFunc("/api/v1/domains/add_scan", ApiPostDecorator(ApiDomainAdd))
 	r.HandleFunc("/api/v1/domains/outdated", ApiDecorator(ApiDomainsOutdated))
 
+	/* misc */
+	r.HandleFunc("/api/v1/stats", ApiDecorator(ApiStats))
+
 	/* start server */
 	panic(http.ListenAndServe(os.Getenv("LISTEN_ADDR"), r))
 }

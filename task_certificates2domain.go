@@ -1,15 +1,13 @@
 package main
 
-import (
-	"fmt"
-)
+import "fmt"
 
-func TaskIndividualEmails2Domains() {
+func TaskCertificate2Domain() {
 	domains := make([]string, 0, MAX_SQLX_PLACEHOLDERS)
 	var total_domain = 0
 
 	rows, err := GlobalContext.Database.Queryx(
-		"SELECT DISTINCT REVERSE(rev_host) AS domain FROM individual_emails")
+		"SELECT DISTINCT domain FROM ssl_certificate_dns_names WHERE domain NOT LIKE '*%'")
 	AssertError(err)
 	defer rows.Close()
 
@@ -21,7 +19,7 @@ func TaskIndividualEmails2Domains() {
 			total_domain += MAX_SQLX_PLACEHOLDERS
 			InsertDomains(domains)
 			domains = domains[:0]
-			fmt.Print("[individual_emails_2_domains] Processed ", total_domain, " domains\r")
+			fmt.Print("[individual_certificates_2_domains] Processed ", total_domain, " domains\r")
 		}
 	}
 

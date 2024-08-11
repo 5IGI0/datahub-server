@@ -23,7 +23,12 @@ func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8,
 
 	page_title := data["title"]
 	if page_title != nil {
-		page_title = TruncateText(data["title"].(string), 255)
+		page_title = TruncateText(page_title.(string), 255)
+	}
+
+	path := data["path"]
+	if path != nil {
+		path = TruncateText(path.(string), 255)
 	}
 
 	is_new_cert := true
@@ -31,14 +36,14 @@ func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8,
 		service_id, _ = GlobalContext.Database.MustExec(`INSERT INTO http_services(
 			      is_active,domain_id,domain,secure,port,page_title,status_code,actual_path,raw_result,certificate_id)
 			VALUE(1,?,?,?,?,?,?,?,?,?)`,
-			domain_id, domain, secure, port, page_title, data["status_code"], TruncateText(data["path"].(string), 255), raw_result, cert_id).LastInsertId()
+			domain_id, domain, secure, port, page_title, data["status_code"], path, raw_result, cert_id).LastInsertId()
 
 	} else {
 		is_new_cert = false
 		GlobalContext.Database.MustExec(`UPDATE http_services
 		SET is_active=1,page_title=?,status_code=?,actual_path=?,raw_result=?,certificate_id=?
 		WHERE id=?`,
-			page_title, data["status_code"], TruncateText(data["path"].(string), 255), raw_result, cert_id, service_id)
+			page_title, data["status_code"], path, raw_result, cert_id, service_id)
 	}
 
 	if cert_id != nil {

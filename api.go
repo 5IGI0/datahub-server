@@ -8,6 +8,7 @@ import (
 
 func ApiDecorator(fnc func(http.ResponseWriter, *http.Request) (any, int, string, error)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
 		data, status_code, error_code, err := fnc(w, r)
 
 		var response struct {

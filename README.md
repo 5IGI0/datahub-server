@@ -4,7 +4,7 @@ central server for managing/aggregating all data received from the various sourc
 
 ## TODOs
 
-- [ ] front
+- [X] front
 - [ ] token + permissions
 - [ ] websocket for dispatching job to workers
 - [X] use ORM or QueryBuilder
