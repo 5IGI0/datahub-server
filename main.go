@@ -63,6 +63,7 @@ func StartApi() {
 	r.HandleFunc("/api/v1/discourses/by_hash_id/{hash_id}/add_topics", ApiPostDecorator(ApiAddDiscourseTopics))
 	r.HandleFunc("/api/v1/discourses/by_hash_id/{hash_id}/add_posts", ApiPostDecorator(ApiAddDiscoursePosts))
 	r.HandleFunc("/api/v1/discourses/by_hash_id/{hash_id}/add_users", ApiPostDecorator(ApiAddDiscourseUsers))
+	r.HandleFunc("/api/v1/discourses/list", ApiDecorator(ApiGetDiscourseInstanceList))
 
 	/* misc */
 	r.HandleFunc("/api/v1/stats", ApiDecorator(ApiStats))

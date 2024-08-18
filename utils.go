@@ -40,6 +40,52 @@ func SanitizeEmail(email string) string {
 	return user + "@" + domain
 }
 
+func SanitizeDomain(domain string) (string, bool) {
+	port_splitted := strings.Split(domain, ":")
+
+	if len(port_splitted) == 2 {
+		// domain with port
+		domain = port_splitted[0]
+	} else if len(port_splitted) > 2 {
+		// might be some IPv6 or non-valid domain
+		return "", false
+	}
+
+	if len(domain) == 0 {
+		return "", false
+	}
+
+	domain = strings.ToLower(domain)
+
+	c := domain[len(domain)-1]
+	if c <= '9' && c >= '0' {
+		// can't tell where i read it
+		// but i know domains can't end with numbers
+		// TODO: check TLD list
+		return "", false
+	}
+
+	domain, err := idna.ToASCII(domain)
+	if err != nil {
+		return "", false
+	}
+
+	domain = strings.TrimRight(domain, ".")
+
+	return domain, strings.ContainsRune(domain, '.')
+}
+
+func SanitizeDomains(domains []string) []string {
+	ret := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		if san_domain, e := SanitizeDomain(domain); e {
+			ret = append(ret, san_domain)
+		}
+	}
+
+	return ret
+}
+
 func JsonAny2StringList(input any) ([]string, bool) {
 	fully_converted := true
 	ret := []string{}
@@ -140,4 +186,14 @@ func ForceInt64Cast(untyped any) (int64, bool) {
 	}
 
 	return 0, false
+}
+
+func ExtractDomainFromLink(link string) (string, bool) {
+
+	url_parts := strings.Split(link, "/")
+	if len(url_parts) < 3 {
+		return "", false
+	}
+
+	return strings.Split(url_parts[2], ":")[0], true
 }

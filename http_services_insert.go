@@ -18,6 +18,10 @@ func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8,
 		cert_id = SSLCertificateInsert(cert_row)
 	}
 
+	if data["status_code"] == nil {
+		return
+	}
+
 	GlobalContext.Database.Get(&service_id, "SELECT id FROM http_services WHERE domain_id=? AND secure=? AND port=?",
 		domain_id, secure, port)
 
@@ -92,7 +96,7 @@ func HttpServiceInsertHeader(service_id int64, headers map[string]any) {
 			"`is_active`":  1,
 			"`key`":        row.Key,
 			"`value`":      row.Value}
-	}, func(HttpHeaderRow, int64) map[string]any { return nil })
+	}, nil)
 }
 
 func HttpServiceInsertDocumentMeta(service_id int64, meta []any) {
@@ -120,7 +124,7 @@ func HttpServiceInsertDocumentMeta(service_id int64, meta []any) {
 			"is_active":  1,
 			"property":   row.Property,
 			"content":    row.Content}
-	}, func(HttpDocumentMetaRow, int64) map[string]any { return nil })
+	}, nil)
 }
 
 func HttpServiceInsertRobotTxt(service_id int64, directives []any) {
@@ -150,5 +154,5 @@ func HttpServiceInsertRobotTxt(service_id int64, directives []any) {
 			"useragent":  row.UserAgent,
 			"directive":  row.Directive,
 			"value":      row.Value}
-	}, func(HttpRobotsTxtRow, int64) map[string]any { return nil })
+	}, nil)
 }

@@ -138,10 +138,11 @@ func DomainInsertRecords(domain_id int64, records map[string]any) {
 				"type":      r.Type,
 				"addr":      r.Addr,
 				"priority":  r.Priority}
-		}, func(DNSRecordRow, int64) map[string]interface{} { return nil })
+		}, nil)
 }
 
 func InsertDomains(domains []string) int {
+	domains = SanitizeDomains(domains)
 	known_domains := make([]string, 0, len(domains))
 	query_str := bytes.NewBufferString("SELECT domain FROM domains WHERE domain IN (")
 	vals := make([]any, 0, len(domains))

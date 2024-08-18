@@ -437,3 +437,20 @@ func __insertDiscourseTags(Tags []DiscourseTagRow) {
 			return row2setmap(r)
 		})
 }
+
+func ApiGetDiscourseInstanceList(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
+	rows, err := GlobalContext.Database.Queryx(
+		"SELECT host, secure, root FROM discourse_instances")
+	AssertError(err)
+
+	var ret []string
+	for rows.Next() {
+		var row DiscourseInstanceRow
+		AssertError(rows.StructScan(&row))
+
+		ret = append(ret,
+			Ternary(row.Secure == 0, "http", "https")+"://"+row.Host+"/"+row.Root)
+	}
+
+	return ret, 200, "", nil
+}
