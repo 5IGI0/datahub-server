@@ -84,7 +84,7 @@ func InsertHashIdBasedRows[T HashIdBased](
 	OnDup func(r T, index int64) map[string]interface{}) int64 {
 	var PresentRows []T
 
-	if len(NewRows) == 0 {
+	if len(NewRows) == 0 && cond != nil {
 		q, v := squirrel.
 			Update(table).Set("is_active", 0).Where(cond).MustSql()
 		GlobalContext.Database.MustExec(q, v...)
@@ -101,7 +101,16 @@ func InsertHashIdBasedRows[T HashIdBased](
 		is_present := false
 		for _, pr := range PresentRows {
 			if pr.GetHashId() == nr.GetHashId() {
-				OnDup(nr, pr.GetId())
+				SetMap := OnDup(nr, pr.GetId())
+
+				if SetMap != nil {
+					q, v := squirrel.
+						Update(table).
+						SetMap(SetMap).
+						Where(squirrel.Eq{"hash_id": nr.GetHashId()}).MustSql()
+					GlobalContext.Database.MustExec(q, v...)
+				}
+
 				is_present = true
 				break
 			}

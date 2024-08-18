@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS `dns_records` (
     `domain_id`     BIGINT UNSIGNED NOT NULL,
     `is_active`     TINYINT UNSIGNED NOT NULL,
     `type`          SMALLINT UNSIGNED NOT NULL,
-    `addr`          VARCHAR(255),
+    `addr`          VARCHAR(255),         
     `priority`      SMALLINT UNSIGNED,
     `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
                         `domain_id`,":",`type`,":",IFNULL(`addr`,''),":",IFNULL(`priority`,'0')))),
@@ -234,6 +234,159 @@ CREATE TABLE IF NOT EXISTS `http_certificate_history`(
     FOREIGN KEY (`service_id`)
         REFERENCES `http_services`(`id`)
         ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_instances` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `secure`            TINYINT UNSIGNED                    NOT NULL,
+    `host`              VARCHAR(255)                        NOT NULL,
+    `rev_domain`        VARCHAR(255) CHARACTER SET ascii GENERATED ALWAYS AS (
+                        REVERSE(SUBSTRING_INDEX(`host`,':',1))) VIRTUAL, -- assuming `host` is not an IPv6.
+    `root`              VARCHAR(1024)                       NOT NULL,
+    `title`             VARCHAR(128) CHARACTER SET utf8mb4  NOT NULL,
+    `description`       VARCHAR(255) CHARACTER SET utf8mb4  NOT NULL,
+    `login_required`    TINYINT UNSIGNED                    NOT NULL,
+    `raw_data`          TEXT CHARACTER SET utf8mb4          NOT NULL,
+
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `secure`,':',`host`,':',`root`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `rev_domain_ind`(`rev_domain`),
+    INDEX `title_ind`(`title`),
+    INDEX `description`(`description`)
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_users` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `instance_id`       BIGINT UNSIGNED NOT NULL,
+    `user_id`           BIGINT NOT NULL, -- system user id = -1
+
+    `username`          VARCHAR(32)     NOT NULL,
+    `name`              VARCHAR(64)     CHARACTER SET utf8mb4 NOT NULL,
+    `title`             VARCHAR(128)    CHARACTER SET utf8mb4 NOT NULL,
+    -- 1: admin
+    -- 2: moderator
+    `flags`                 TINYINT UNSIGNED NOT NULL,
+    `website_domain`        VARCHAR(255),
+    `rev_website_domain`    VARCHAR(255) CHARACTER SET ascii GENERATED ALWAYS AS (REVERSE(`website_domain`)) VIRTUAL,
+    `raw_data`              TEXT CHARACTER SET utf8mb4 NOT NULL,
+    `is_data_full`          TINYINT UNSIGNED NOT NULL,
+
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `instance_id`,':',`user_id`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `username_ind`(`username`),
+    INDEX `name_ind`(`name`),
+    INDEX `title_ind`(`title`),
+    INDEX `rev_website_domain_ind`(`rev_website_domain`),
+    INDEX `instance_id_ind`(`instance_id`),
+    FOREIGN KEY (`instance_id`)
+        REFERENCES `discourse_instances`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_tags` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `instance_id`       BIGINT UNSIGNED NOT NULL,
+    `name`              VARCHAR(128)    CHARACTER SET utf8mb4 NOT NULL,
+    `description`       VARCHAR(255)    CHARACTER SET utf8mb4,
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+        `instance_id`, ':', `name`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`)
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_topics` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `instance_id`       BIGINT UNSIGNED NOT NULL,
+    `topic_id`          BIGINT UNSIGNED NOT NULL,
+
+    `title`             VARCHAR(128)    CHARACTER SET utf8mb4 NOT NULL,
+    `category_id`       BIGINT UNSIGNED NOT NULL,
+    `user_id`           BIGINT,
+    `raw_data`          MEDIUMTEXT CHARACTER SET utf8mb4 NOT NULL,
+    `is_data_full`      TINYINT UNSIGNED NOT NULL,
+
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `instance_id`,':',`topic_id`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `instance_id_ind`(`instance_id`),
+    INDEX `title_ind`(`title`),
+    FOREIGN KEY (`instance_id`)
+        REFERENCES `discourse_instances`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_topic_tags` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `topic_id`          BIGINT UNSIGNED NOT NULL,
+    `tag_id`            BIGINT UNSIGNED NOT NULL,
+    `is_active`         TINYINT UNSIGNED NOT NULL,
+
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `topic_id`,':',`tag_id`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `topic_id_ind`(`topic_id`),
+    INDEX `tag_id_ind`(`tag_id`),
+    FOREIGN KEY (`topic_id`)
+        REFERENCES `discourse_topics`(`id`)
+        ON DELETE CASCADE,
+    FOREIGN KEY (`tag_id`)
+        REFERENCES `discourse_tags`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_categories` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `instance_id`       BIGINT UNSIGNED NOT NULL,
+    `category_id`       BIGINT UNSIGNED NOT NULL,
+    `is_active`         TINYINT UNSIGNED NOT NULL,
+
+    `name`          VARCHAR(127)    CHARACTER SET utf8mb4 NOT NULL,
+    `slug`          VARCHAR(127)    NOT NULL,
+    `description`   VARCHAR(127)    CHARACTER SET utf8mb4 NOT NULL,
+    `raw_data`      MEDIUMTEXT CHARACTER SET utf8mb4 NOT NULL,
+
+    `parent_category_id`    BIGINT UNSIGNED,
+
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `instance_id`,':',`category_id`))),
+    
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `instance_id_ind`(`instance_id`),
+    INDEX `name_ind`(`name`),
+    INDEX `slug_ind`(`slug`),
+    INDEX `description_ind`(`description`)
+);
+
+CREATE TABLE IF NOT EXISTS `discourse_posts` (
+    `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `instance_id`       BIGINT UNSIGNED NOT NULL,
+    `topic_id`          BIGINT UNSIGNED NOT NULL,
+    `post_id`           BIGINT UNSIGNED NOT NULL,
+    `user_id`           BIGINT NOT NULL,
+
+    -- what should i put here? i don't know.
+
+    `raw_data`      MEDIUMTEXT CHARACTER SET utf8mb4 NOT NULL,
+
+    `hash_id`   CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                    `instance_id`,':',`post_id`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `topic_id`(`instance_id`,`topic_id`),
+    INDEX `user_id`(`instance_id`,`user_id`)
 );
 
 /*

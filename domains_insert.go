@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"golang.org/x/net/idna"
@@ -16,8 +17,12 @@ func DomainInsertScan(Scan map[string]any) error {
 	// TODO: check validity + existence
 	domain, _ := Scan["domain"].(string)
 	tags, _ := Scan["tags"].([]any)
-	services := Scan["services"].(map[string]any)
-	check_time := Scan["meta"].(map[string]any)["started_at"].(string)
+	services, _ := Scan["services"].(map[string]any)
+	meta, _ := Scan["meta"].(map[string]any)
+	check_time, e := meta["check_time"].(string)
+	if !e {
+		check_time = time.Now().Format("2006-01-02T15:04:05")
+	}
 	dns_records := Scan["dns_records"].(map[string]any)
 
 	is_active := 0

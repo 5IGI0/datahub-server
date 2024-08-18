@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -62,6 +63,12 @@ func JsonAny2StringList(input any) ([]string, bool) {
 	return ret, fully_converted
 }
 
+func Assert(cond bool) {
+	if !cond {
+		panic(errors.New("failed assert"))
+	}
+}
+
 func AssertError(err error) {
 	if err != nil {
 		panic(err)
@@ -105,4 +112,32 @@ func Req2Page(r *http.Request) (int, int) {
 	}
 
 	return page, page_size
+}
+
+func ForceInt64Cast(untyped any) (int64, bool) {
+	switch val := untyped.(type) {
+	case int:
+		return int64(val), true
+	case int8:
+		return int64(val), true
+	case int16:
+		return int64(val), true
+	case int32:
+		return int64(val), true
+	case int64:
+		return val, true
+	case uint8:
+		return int64(val), true
+	case uint16:
+		return int64(val), true
+	case uint32:
+		return int64(val), true
+	case float64:
+		return int64(val), true
+	case float32:
+		return int64(val), true
+
+	}
+
+	return 0, false
 }
