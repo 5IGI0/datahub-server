@@ -29,13 +29,13 @@ http services to scrape
 - [ ] wordpress
 - [ ] phpbb
 - [ ] gitea/gogs/forgejo
+- [X] discourse
 
 links to scrape
 
 - [ ] discord invite
 - [ ] telegram link
 - [ ] linktree
-- [X] discourse-based forums
 - [ ] ...
 
 ...
