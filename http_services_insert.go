@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/Masterminds/squirrel"
 )
@@ -69,10 +70,72 @@ func HttpServiceInsert(domain_id int64, domain string, port uint16, secure int8,
 		}
 	}
 
+	HttpServiceInsertNodeInfo(service_id, data["nodeinfo"])
+	HttpServiceInsertMatrixInfo(service_id, data["matrix"])
 	HttpServiceInsertHeader(service_id, data["headers"].(map[string]any))
 	HttpServiceInsertDocumentMeta(service_id, data["html_meta"].([]any))
 	if v, e := data["robots_txt"]; e {
 		HttpServiceInsertRobotTxt(service_id, v.([]any))
+	}
+}
+
+func HttpServiceInsertMatrixInfo(service_id int64, input_info any) {
+	var features []MatrixClientFeatureRow
+	var versions []MatrixClientVersionRow
+
+	if info, e := input_info.(map[string]any); e {
+		if vs, e := info["client_versions"].([]any); e {
+			for _, version := range vs {
+				var row MatrixClientVersionRow
+
+				row.ServiceId = service_id
+				row.Version = fmt.Sprint(version)
+				versions = append(versions, row)
+			}
+		}
+
+		if fs, e := info["client_features"].([]any); e {
+			for _, feature := range fs {
+				var row MatrixClientFeatureRow
+
+				row.ServiceId = service_id
+				row.Feature = fmt.Sprint(feature)
+				features = append(features, row)
+			}
+		}
+	}
+
+	InsertHashIdBasedRows(versions, "matrix_client_versions", squirrel.Eq{"service_id": service_id},
+		func(r MatrixClientVersionRow) map[string]any {
+			return map[string]any{
+				"service_id": r.ServiceId,
+				"is_active":  1,
+				"version":    r.Version}
+		}, nil)
+	InsertHashIdBasedRows(features, "matrix_client_features", squirrel.Eq{"service_id": service_id},
+		func(r MatrixClientFeatureRow) map[string]any {
+			return map[string]any{
+				"service_id": r.ServiceId,
+				"is_active":  1,
+				"feature":    r.Feature}
+		}, nil)
+}
+
+func HttpServiceInsertNodeInfo(service_id int64, nodeinfo any) {
+	raw_json, _ := json.Marshal(nodeinfo)
+	var nodeinfo_id int64
+
+	if nodeinfo == nil {
+		GlobalContext.Database.MustExec("UPDATE http_nodeinfo SET is_active=0 WHERE service_id=?", service_id)
+		return
+	}
+
+	GlobalContext.Database.Get(&nodeinfo_id, "SELECT id FROM http_nodeinfo WHERE service_id=?", service_id)
+
+	if nodeinfo_id != 0 {
+		GlobalContext.Database.MustExec("UPDATE http_nodeinfo SET raw_data=?, is_active=1 WHERE service_id=?", raw_json, service_id)
+	} else {
+		GlobalContext.Database.MustExec("INSERT INTO http_nodeinfo(raw_data,service_id,is_active) VALUE(?,?,1)", raw_json, service_id)
 	}
 }
 

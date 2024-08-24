@@ -71,8 +71,9 @@ func SanitizeDomain(domain string) (string, bool) {
 	}
 
 	domain = strings.TrimRight(domain, ".")
+	domain = strings.Trim(domain, " \t\r\v\n\f")
 
-	return domain, strings.ContainsRune(domain, '.')
+	return domain, strings.ContainsRune(domain, '.') && !strings.ContainsAny(domain, " \t\r\v\n\f")
 }
 
 func SanitizeDomains(domains []string) []string {

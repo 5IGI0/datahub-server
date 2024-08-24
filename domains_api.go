@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/idna"
 )
 
-func ApiDomainAdd(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
+func ApiDomainAddScan(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
 	var input map[string]any
 
 	{
@@ -112,4 +112,19 @@ func ApiDomainsOutdated(w http.ResponseWriter, r *http.Request) (any, int, strin
 	}
 
 	return ret, 200, "", nil
+}
+
+func ApiDomainAdd(w http.ResponseWriter, r *http.Request) (any, int, string, error) {
+	var input []string
+
+	{
+		tmp, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(tmp, &input); err != nil {
+			return nil, http.StatusBadRequest, "BAD_JSON", err
+		}
+	}
+
+	InsertDomains(input)
+
+	return nil, http.StatusCreated, "", nil
 }

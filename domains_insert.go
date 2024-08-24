@@ -23,7 +23,7 @@ func DomainInsertScan(Scan map[string]any) error {
 	if !e {
 		check_time = time.Now().Format("2006-01-02T15:04:05")
 	}
-	dns_records := Scan["dns_records"].(map[string]any)
+	dns_records, _ := Scan["dns_records"].(map[string]any)
 
 	is_active := 0
 	if len(dns_records) != 0 {
@@ -81,7 +81,6 @@ func DomainInsertScan(Scan map[string]any) error {
 		case "https":
 			HttpServiceInsert(domain_id, domain, 443, 1, v.(map[string]any))
 		}
-
 	}
 
 	return nil
@@ -142,6 +141,21 @@ func DomainInsertRecords(domain_id int64, records map[string]any) {
 }
 
 func InsertDomains(domains []string) int {
+	var ret int
+
+	for i := 0; i < len(domains); i += MAX_SQLX_PLACEHOLDERS {
+		tmp := domains[i:]
+		if len(domains)-i > MAX_SQLX_PLACEHOLDERS {
+			tmp = domains[i : i+MAX_SQLX_PLACEHOLDERS]
+		}
+
+		ret += _InsertDomains(tmp)
+	}
+
+	return ret
+}
+
+func _InsertDomains(domains []string) int {
 	domains = SanitizeDomains(domains)
 	known_domains := make([]string, 0, len(domains))
 	query_str := bytes.NewBufferString("SELECT domain FROM domains WHERE domain IN (")

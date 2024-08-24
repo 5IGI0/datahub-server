@@ -85,8 +85,7 @@ CREATE TABLE IF NOT EXISTS `domain_scan_archives` (
     `raw_result`    MEDIUMTEXT NOT NULL,
     INDEX `domain_id_ind`(`domain_id`)
 )
-PAGE_COMPRESSED=1
-PAGE_COMPRESSION_LEVEL=9;
+ROW_FORMAT=COMPRESSED;
 
 CREATE TABLE IF NOT EXISTS `dns_records` (
     `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -127,9 +126,7 @@ CREATE TABLE IF NOT EXISTS `ssl_certificates` (
     INDEX `issuer_orga_ind`(`issuer_orga`),
     INDEX `subject_orga_ind`(`subject_orga`),
     UNIQUE (`hash_id`)
-)
-PAGE_COMPRESSED=1
-PAGE_COMPRESSION_LEVEL=9;
+);
 
 CREATE TABLE IF NOT EXISTS `ssl_certificate_dns_names` (
     `id`                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -231,6 +228,63 @@ CREATE TABLE IF NOT EXISTS `http_certificate_history`(
     `observed_at`       DATETIME NOT NULL,
     INDEX `service_ind`(`service_id`,`observed_at`),
     INDEX `certificate_ind`(`certificate_id`,`service_id`),
+    FOREIGN KEY (`service_id`)
+        REFERENCES `http_services`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `http_nodeinfo` (
+    `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `service_id`    BIGINT UNSIGNED NOT NULL,
+    `is_active`     TINYINT UNSIGNED NOT NULL,
+
+    `software_name`  VARCHAR(64) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (
+        LEFT(JSON_UNQUOTE(JSON_EXTRACT(`raw_data`,'$.software.name')),64)),
+    `software_version`  VARCHAR(64) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (
+        LEFT(JSON_UNQUOTE(JSON_EXTRACT(`raw_data`,'$.software.version')),64)),
+
+    `raw_data`  BLOB NOT NULL,
+
+    INDEX `service_ind`(`service_id`),
+    UNIQUE (`service_id`),
+    FOREIGN KEY (`service_id`)
+        REFERENCES `http_services`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `matrix_client_versions` (
+    `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `service_id`    BIGINT UNSIGNED NOT NULL,
+    `is_active`     TINYINT UNSIGNED NOT NULL,
+
+    `version`   VARCHAR(64) NOT NULL,
+
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `service_id`,':',`version`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `version_ind`(`version`),
+    INDEX `service_id_index`(`service_id`),
+    FOREIGN KEY (`service_id`)
+        REFERENCES `http_services`(`id`)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `matrix_client_features` (
+    `id`            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `service_id`    BIGINT UNSIGNED NOT NULL,
+    `is_active`     TINYINT UNSIGNED NOT NULL,
+
+    `feature`   VARCHAR(128) NOT NULL,
+
+    `hash_id`       CHAR(40) CHARACTER SET ascii GENERATED ALWAYS AS (SHA1(CONCAT(
+                        `service_id`,':',`feature`))),
+
+    UNIQUE (`hash_id`),
+    INDEX `hash_id_ind`(`hash_id`),
+    INDEX `feature_ind`(`feature`),
+    INDEX `service_id_index`(`service_id`),
     FOREIGN KEY (`service_id`)
         REFERENCES `http_services`(`id`)
         ON DELETE CASCADE
@@ -387,7 +441,7 @@ CREATE TABLE IF NOT EXISTS `discourse_posts` (
     INDEX `hash_id_ind`(`hash_id`),
     INDEX `topic_id`(`instance_id`,`topic_id`),
     INDEX `user_id`(`instance_id`,`user_id`)
-);
+) ROW_FORMAT=COMPRESSED;
 
 /*
  * UPDATES

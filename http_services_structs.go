@@ -100,3 +100,51 @@ func (r HttpRobotsTxtRow) CompHashId() string {
 			r.Value)))
 	return hex.EncodeToString(h[:])
 }
+
+type MatrixClientVersionRow struct {
+	Id        int64  `db:"id"`
+	ServiceId int64  `db:"service_id"`
+	IsActive  int8   `db:"is_active"`
+	Version   string `db:"version"`
+	HashId    string `db:"hash_id"`
+}
+
+func (r MatrixClientVersionRow) GetId() int64 { return r.Id }
+func (r MatrixClientVersionRow) GetHashId() string {
+	if r.HashId == "" {
+		return r.CompHashId()
+	}
+	return r.HashId
+}
+func (r MatrixClientVersionRow) CompHashId() string {
+	h := sha1.Sum([]byte(
+		fmt.Sprintf(
+			"%v:%v",
+			r.ServiceId,
+			r.Version)))
+	return hex.EncodeToString(h[:])
+}
+
+type MatrixClientFeatureRow struct {
+	Id        int64  `db:"id"`
+	ServiceId int64  `db:"service_id"`
+	IsActive  int8   `db:"is_active"`
+	Feature   string `db:"version"`
+	HashId    string `db:"hash_id"`
+}
+
+func (r MatrixClientFeatureRow) GetId() int64 { return r.Id }
+func (r MatrixClientFeatureRow) GetHashId() string {
+	if r.HashId == "" {
+		return r.CompHashId()
+	}
+	return r.HashId
+}
+func (r MatrixClientFeatureRow) CompHashId() string {
+	h := sha1.Sum([]byte(
+		fmt.Sprintf(
+			"%v:%v",
+			r.ServiceId,
+			r.Feature)))
+	return hex.EncodeToString(h[:])
+}

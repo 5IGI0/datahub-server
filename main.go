@@ -55,7 +55,8 @@ func StartApi() {
 
 	/* feed-related */
 	r.HandleFunc("/api/v1/individuals/add", ApiPostDecorator(ApiIndividualAdd))
-	r.HandleFunc("/api/v1/domains/add_scan", ApiPostDecorator(ApiDomainAdd))
+	r.HandleFunc("/api/v1/domains/add", ApiPostDecorator(ApiDomainAdd))
+	r.HandleFunc("/api/v1/domains/add_scan", ApiPostDecorator(ApiDomainAddScan))
 	r.HandleFunc("/api/v1/domains/outdated", ApiDecorator(ApiDomainsOutdated))
 	r.HandleFunc("/api/v1/discourses/by_hash_id/{hash_id}/feed_state", ApiDecorator(ApiGetDiscourseInstanceState))
 	r.HandleFunc("/api/v1/discourses/add_instance", ApiPostDecorator(ApiAddDiscourseInstance))
