@@ -8,4 +8,11 @@ const (
 
 	DEFAULT_PAGESIZE = 30
 	MAX_PAGESIZE     = 500
+
+	API_NO_RATELIMIT = 1 << 0
+	API_FEED         = 1 << 1
+	API_ADMIN        = 1 << 2
+
+	TOKEN_FEED  = 1 << 0
+	TOKEN_ADMIN = 1 << 1
 )

@@ -158,6 +158,11 @@ func InsertDomains(domains []string) int {
 func _InsertDomains(domains []string) int {
 	domains = SanitizeDomains(domains)
 	known_domains := make([]string, 0, len(domains))
+
+	if len(domains) == 0 {
+		return 0
+	}
+
 	query_str := bytes.NewBufferString("SELECT domain FROM domains WHERE domain IN (")
 	vals := make([]any, 0, len(domains))
 	for i, domain := range domains {

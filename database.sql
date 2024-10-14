@@ -443,6 +443,19 @@ CREATE TABLE IF NOT EXISTS `discourse_posts` (
     INDEX `user_id`(`instance_id`,`user_id`)
 ) ROW_FORMAT=COMPRESSED;
 
+CREATE TABLE IF NOT EXISTS `tokens` (
+    `id`                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `token`             CHAR(36) NOT NULL,
+    `ratelimit`         INT UNSIGNED,
+    `ratelimit_window`  INT UNSIGNED,
+    `flags`             BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    `comment`           TEXT,
+    `expired_at`        BIGINT,
+
+    UNIQUE(`token`),
+    INDEX `token_ind`(`token`)
+);
+
 /*
  * UPDATES
  */
