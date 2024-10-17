@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -140,59 +139,33 @@ func DomainInsertRecords(domain_id int64, records map[string]any) {
 		}, nil)
 }
 
-func InsertDomains(domains []string) int {
-	var ret int
-
+func InsertDomains(domains []string) {
 	for i := 0; i < len(domains); i += MAX_SQLX_PLACEHOLDERS {
 		tmp := domains[i:]
 		if len(domains)-i > MAX_SQLX_PLACEHOLDERS {
 			tmp = domains[i : i+MAX_SQLX_PLACEHOLDERS]
 		}
 
-		ret += _InsertDomains(tmp)
+		_InsertDomains(tmp)
 	}
-
-	return ret
 }
 
-func _InsertDomains(domains []string) int {
+func _InsertDomains(domains []string) {
 	domains = SanitizeDomains(domains)
-	known_domains := make([]string, 0, len(domains))
-
 	if len(domains) == 0 {
-		return 0
+		return
 	}
 
-	query_str := bytes.NewBufferString("SELECT domain FROM domains WHERE domain IN (")
-	vals := make([]any, 0, len(domains))
-	for i, domain := range domains {
-		if i == 0 {
-			query_str.WriteByte('?')
-		} else {
-			query_str.WriteString(",?")
+	var q = bytes.NewBufferString("INSERT IGNORE INTO domains(domain) VALUE")
+	var d = make([]any, 0, len(domains))
+
+	for i, dd := range domains {
+		if i != 0 {
+			q.WriteByte(',')
 		}
-		vals = append(vals, domain)
-	}
-	query_str.WriteByte(')')
-
-	rows, err := GlobalContext.Database.Queryx(query_str.String(), vals...)
-	AssertError(err)
-	defer rows.Close()
-
-	for rows.Next() {
-		var domain string
-		AssertError(rows.Scan(&domain))
-		known_domains = append(known_domains, domain)
+		q.WriteString("(?)")
+		d = append(d, dd)
 	}
 
-	var total_added int = 0
-	for _, domain := range domains {
-		if !slices.Contains(known_domains, domain) {
-			known_domains = append(known_domains, domain)
-			_, err := GlobalContext.Database.Exec("INSERT IGNORE INTO domains(domain) VALUES(?)", domain)
-			AssertError(err)
-		}
-	}
-
-	return total_added
+	GlobalContext.Database.MustExec(q.String(), d...)
 }
