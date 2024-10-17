@@ -41,14 +41,6 @@ func StartApi() {
 	AssertError(err)
 	GlobalContext.ForwardedFromHdr = os.Getenv("FORWARDED_FROM_HEADER")
 
-	/* find individuals by email */
-	r.HandleFunc("/api/v1/individuals/email/{username}@{domain}", ApiDecorator(ApiIndividualByEmail, 0))
-	r.HandleFunc("/api/v1/individuals/email/{username}@", ApiDecorator(ApiIndividualByEmail, 0))
-	r.HandleFunc("/api/v1/individuals/email/@{domain}", ApiDecorator(ApiIndividualByEmail, 0))
-	r.HandleFunc("/api/v1/individuals/email/{username}@{domain}/{page}", ApiDecorator(ApiIndividualByEmail, 0))
-	r.HandleFunc("/api/v1/individuals/email/{username}@/{page}", ApiDecorator(ApiIndividualByEmail, 0))
-	r.HandleFunc("/api/v1/individuals/email/@{domain}/{page}", ApiDecorator(ApiIndividualByEmail, 0))
-
 	/* domain-related */
 	r.HandleFunc("/api/v1/domains/subdomains/{domain}", ApiDecorator(ApiDomainSubs, 0))
 	r.HandleFunc("/api/v1/domains/scan/{domain}", ApiDecorator(ApiDomainScan, 0))
@@ -69,7 +61,6 @@ func StartApi() {
 	r.HandleFunc("/api/v1/addrs/addr/{addr}", ApiDecorator(ApiAddrInfo, 0))
 
 	/* feed-related */
-	r.HandleFunc("/api/v1/individuals/add", ApiPostDecorator(ApiIndividualAdd, API_NO_RATELIMIT|API_FEED))
 	r.HandleFunc("/api/v1/domains/add", ApiPostDecorator(ApiDomainAdd, API_NO_RATELIMIT|API_FEED))
 	r.HandleFunc("/api/v1/domains/add_scan", ApiPostDecorator(ApiDomainAddScan, API_NO_RATELIMIT|API_FEED))
 	r.HandleFunc("/api/v1/domains/outdated", ApiDecorator(ApiDomainsOutdated, API_NO_RATELIMIT|API_FEED))
